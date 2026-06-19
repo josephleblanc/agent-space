@@ -64,6 +64,7 @@ Verify:
 |-------|-----|
 | `invalid value '1' for '--no-color'` | `unset NO_COLOR` before running Trunk |
 | `file not found for module state` | Ensure `crates/game/src/state.rs` exists on `main` |
+| `wasm-opt` validation error on release build | Set `data-wasm-opt="0"` on the Trunk rust link in `web/index.html` (Bevy 0.18 + wasm-opt 123) |
 | Voice disabled in UI | Set `VITE_VAPI_PUBLIC_KEY` and re-run `npm run build` |
 
 ## 3. Browser shell + polling
