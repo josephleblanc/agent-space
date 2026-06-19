@@ -132,10 +132,13 @@ npx @insforge/cli deployments env set VITE_VAPI_PUBLIC_KEY <your-vapi-public-key
 npx @insforge/cli deployments env list   # verify both keys are present
 
 # Source deploy: InsForge uploads repo and runs scripts/vercel-build.sh on Vercel (WASM too large for direct upload)
-npx @insforge/cli deployments deploy .
+# Prefer gzip static bundle — remote Rust builds OOM on Vercel:
+bash scripts/vercel-build.sh
+bash scripts/prepare-deploy-bundle.sh
+npx @insforge/cli deployments deploy .deploy-dist
 ```
 
-`scripts/vercel-build.sh` exports `VITE_INSFORGE_URL` (with fallbacks to `INSFORGE_URL` / `OSS_HOST` / project OSS host) and passes through `VITE_VAPI_PUBLIC_KEY` before `npm run build`, so `web/js/env.js` is baked into the hosted bundle.
+`scripts/vercel-build.sh` exports `VITE_INSFORGE_URL` (with fallbacks to `INSFORGE_URL` / `OSS_HOST` / project OSS host) and passes through `VITE_VAPI_PUBLIC_KEY` before `npm run build`, so `web/js/env.js` is baked into the local bundle. For hosted deploys, `scripts/inject-deploy-env.js` rewrites `js/env.js` on Vercel from persistent `deployments env` vars (no Rust compile).
 
 Verify after deploy:
 
@@ -166,8 +169,8 @@ Cloud smoke (2026-06-19): `room-state` returns **4** agents (HTTP 200). `agent-c
 | Area | Owner | Pass? | Notes |
 |------|-------|-------|-------|
 | Edge functions | Track C | Yes | Cloud smoke on API base above; see Production URLs |
-| Browser poll + bridge | Track B | Partial | Shell at `https://6ns446hp.insforge.site`; verify `js/env.js` has non-empty `VITE_INSFORGE_URL` after latest deploy |
+| Browser poll + bridge | Track B | Yes | Shell at `https://6ns446hp.insforge.site`; `js/env.js` has non-empty `VITE_INSFORGE_URL` + `VITE_VAPI_PUBLIC_KEY` (deploy f949df1d) |
 | Bevy movement | Track A | | Local / hosted manual |
 | Voice + tools | Track D | Yes | `get_room_status` tool shape verified on cloud webhook |
 | Nebius replies + DB | Track E | Yes | Researcher cloud reply is live LLM speech (not canned offline) |
-| Release build | Track G | | CI + `scripts/vercel-build.sh` on InsForge deploy |
+| Release build | Track G | Yes | Gzip `.deploy-dist` static deploy; remote Rust build avoided (Vercel OOM) |

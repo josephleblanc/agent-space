@@ -19,6 +19,10 @@ fi
 export VITE_INSFORGE_URL
 export VITE_VAPI_PUBLIC_KEY="${VITE_VAPI_PUBLIC_KEY:-}"
 
+# Remote Vercel builders OOM on full Bevy WASM release builds; prefer .deploy-dist static deploy.
+export CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-1}"
+export CARGO_PROFILE_RELEASE_LTO="${CARGO_PROFILE_RELEASE_LTO:-false}"
+
 echo "[vercel-build] VITE_INSFORGE_URL=$( [[ -n "$VITE_INSFORGE_URL" ]] && echo set || echo missing )"
 echo "[vercel-build] VITE_VAPI_PUBLIC_KEY=$( [[ -n "$VITE_VAPI_PUBLIC_KEY" ]] && echo set || echo missing )"
 

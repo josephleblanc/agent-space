@@ -1,9 +1,8 @@
-# Track G7 — release build in CI; InsForge hosts via source deploy + Vercel remote build.
+# Track G7 — release build in CI; InsForge hosts gzip static bundle (.deploy-dist/).
 # Deploy is skipped when INSFORGE_API_KEY is not configured (no secret required for CI green).
 #
-# WASM (~29 MB) exceeds InsForge OSS per-file upload limit (413), so we cannot upload a
-# pre-built .deploy-dist bundle. CI still runs trunk build --release for verification;
-# `deployments deploy .` uploads source and runs scripts/vercel-build.sh on Vercel.
+# WASM (~29 MB raw) exceeds InsForge OSS per-file upload limit (413). prepare-deploy-bundle.sh
+# gzip-compresses WASM (~8 MB). Vercel runs only inject-deploy-env.js (no Rust) to bake VITE_*.
 
 name: Deploy
 
@@ -81,4 +80,4 @@ jobs:
             echo "INSFORGE_API_KEY secret not set — artifacts uploaded; deploy skipped."
             exit 0
           fi
-          npx --yes @insforge/cli@latest deployments deploy .
+          npx --yes @insforge/cli@latest deployments deploy .deploy-dist
