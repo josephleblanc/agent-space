@@ -28,32 +28,25 @@ fn sync_agents_from_snapshot(
     if !latest.is_changed() {
         return;
     }
-
     let Some(snapshot) = latest.0.as_ref() else {
         return;
     };
-
     bridge_active.0 = true;
-
     for snap in &snapshot.agents {
         for (entity, mut agent, _transform) in &mut agents {
             if agent.id != snap.id {
                 continue;
             }
-
             agent.name = snap.name.clone();
             agent.role = snap.role.clone();
             agent.backend = snap.backend.clone();
             agent.station_id = snap.station_id.clone();
-
             if agent.state != snap.state {
                 agent.set_state(snap.state);
             }
-
             commands
                 .entity(entity)
                 .insert(Transform::from_translation(protocol_to_world(snap.x, snap.y)));
-
             if snap.state != AgentState::Walking {
                 commands.entity(entity).remove::<MovementPath>();
             }
