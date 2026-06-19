@@ -1,0 +1,105 @@
+{
+  "version": 1,
+  "license": "CC0",
+  "agents": {
+    "researcher": {
+      "name": "Researcher",
+      "role": "researcher",
+      "gltf": "characters/researcher.glb",
+      "skin": "texture-a",
+      "source": "kenney_blocky-characters_2.0/character-a",
+      "animations": {
+        "idle": "idle",
+        "walking": "walk",
+        "working": "interact-right",
+        "talking": "emote-yes"
+      }
+    },
+    "coder": {
+      "name": "Coder",
+      "role": "coder",
+      "gltf": "characters/coder.glb",
+      "skin": "texture-b",
+      "source": "kenney_blocky-characters_2.0/character-b",
+      "animations": {
+        "idle": "idle",
+        "walking": "walk",
+        "working": "sit",
+        "talking": "emote-yes"
+      }
+    },
+    "planner": {
+      "name": "Planner",
+      "role": "planner",
+      "gltf": "characters/planner.glb",
+      "skin": "texture-c",
+      "source": "kenney_blocky-characters_2.0/character-c",
+      "animations": {
+        "idle": "idle",
+        "walking": "walk",
+        "working": "interact-left",
+        "talking": "emote-no"
+      }
+    },
+    "social": {
+      "name": "Social",
+      "role": "social",
+      "gltf": "characters/social.glb",
+      "skin": "texture-d",
+      "source": "kenney_blocky-characters_2.0/character-d",
+      "animations": {
+        "idle": "idle",
+        "walking": "walk",
+        "working": "emote-yes",
+        "talking": "emote-yes"
+      }
+    }
+  },
+  "stations": {
+    "research": {
+      "id": "research",
+      "label": "Research Bench",
+      "models": [
+        "environment/research_bench/desk.obj",
+        "environment/research_bench/bookcaseOpen.obj",
+        "environment/research_bench/pottedPlant.obj"
+      ]
+    },
+    "code": {
+      "id": "code",
+      "label": "Coding Desk",
+      "models": [
+        "environment/coding_desk/deskCorner.obj",
+        "environment/coding_desk/computerScreen.obj",
+        "environment/coding_desk/laptop.obj",
+        "environment/coding_desk/chairDesk.obj"
+      ]
+    },
+    "meet": {
+      "id": "meet",
+      "label": "Meeting Table",
+      "models": [
+        "environment/meeting_table/tableRound.obj",
+        "environment/meeting_table/chairRounded.obj"
+      ]
+    },
+    "lounge": {
+      "id": "lounge",
+      "label": "Lounge Area",
+      "models": [
+        "environment/lounge_area/loungeSofa.obj",
+        "environment/lounge_area/loungeChair.obj",
+        "environment/lounge_area/sideTable.obj"
+      ]
+    }
+  },
+  "fallback": {
+    "note": "If asset load fails, Bevy spawns colored capsules per agent role.",
+    "colors": {
+      "researcher": "#4A90D9",
+      "coder": "#50C878",
+      "planner": "#F5A623",
+      "social": "#E056A0"
+    }
+  }
+}
