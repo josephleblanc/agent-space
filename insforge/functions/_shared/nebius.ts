@@ -151,7 +151,7 @@ export function parseAgentTurn(raw: string): AgentTurn {
   };
 }
 
-/** Canned turn when Nebius is unavailable (local dev / demo fallback). */
+/** Canned turn when no LLM backend is available (local dev / demo fallback). */
 export function fallbackAgentTurn(
   agent: AgentSnapshot,
   userMessage: string,
@@ -171,7 +171,7 @@ export function fallbackAgentTurn(
 
   return {
     speech:
-      `[${agent.name}] Got it — "${userMessage}". (Nebius offline; using canned reply.)`,
+      `[${agent.name}] Got it — "${userMessage}". (LLM offline; using canned reply.)`,
     task: wantsWork
       ? { type: agent.role === "coder" ? "code" : "work", station }
       : null,

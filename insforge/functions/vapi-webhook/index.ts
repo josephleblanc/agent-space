@@ -13,7 +13,9 @@ import {
   getRoomSnapshot,
 } from "../_shared/db.ts";
 import { AgentBusyError, withAgentLock } from "../_shared/concurrency.ts";
+import { resolveDefaultLlmBackend } from "../_shared/backends.ts";
 import { NEBIUS_FAST_MODEL } from "../_shared/nebius.ts";
+import { OPENROUTER_FAST_MODEL } from "../_shared/openrouter.ts";
 
 interface VapiToolCall {
   id: string;
@@ -45,9 +47,10 @@ function parseToolArguments(
 }
 
 function verifyVapiSecret(req: Request): boolean {
-  const expected = Deno.env.get("VAPI_API_KEY");
+  const expected =
+    Deno.env.get("PRIVATE_VAPI_API_KEY") ?? Deno.env.get("VAPI_API_KEY");
   if (!expected) {
-    console.warn("VAPI_API_KEY not set; skipping webhook auth");
+    console.warn("PRIVATE_VAPI_API_KEY not set; skipping webhook auth");
     return true;
   }
 
@@ -205,11 +208,15 @@ export default async function handler(req: Request): Promise<Response> {
     [];
 
   if (messageType !== "tool-calls" || toolCalls.length === 0) {
+    const llmBackend = resolveDefaultLlmBackend();
     return jsonResponse({
       ok: true,
       skipped: true,
       type: messageType ?? "unknown",
-      routing_model: NEBIUS_FAST_MODEL,
+      llm_backend: llmBackend.id,
+      routing_model: llmBackend.id === "openrouter"
+        ? OPENROUTER_FAST_MODEL
+        : NEBIUS_FAST_MODEL,
     });
   }
 

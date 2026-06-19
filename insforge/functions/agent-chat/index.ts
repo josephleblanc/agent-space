@@ -1,6 +1,6 @@
 /**
  * POST /functions/agent-chat
- * Agent turn handler — Nebius LLM + structured output + DB state (Track E).
+ * Agent turn handler — Nebius/OpenRouter LLM + structured output + DB state (Track E).
  */
 
 import type { AgentTurn } from "../_shared/protocol.ts";
@@ -64,6 +64,7 @@ export default async function handler(req: Request): Promise<Response> {
       await insertMessage(payload!.agent_id, "user", payload!.message);
 
       const backend = resolveBackend(agent);
+      console.info(`agent-chat backend=${backend.id} agent=${agent.id}`);
       const reply = await backend.generateTurn({
         agent,
         userMessage: payload!.message,

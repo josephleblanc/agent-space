@@ -51,7 +51,7 @@ curl -s -X POST http://127.0.0.1:8787/functions/agent-chat \
   -H 'Content-Type: application/json' \
   -d '{"agent_id":"agent-researcher","message":"Hello"}' | jq
 
-# Vapi webhook tool routing (no auth when VAPI_API_KEY unset)
+# Vapi webhook tool routing (no auth when PRIVATE_VAPI_API_KEY unset)
 curl -s -X POST http://127.0.0.1:8787/functions/vapi-webhook \
   -H 'Content-Type: application/json' \
   -d '{
@@ -110,12 +110,18 @@ npx @insforge/cli functions deploy vapi-webhook \
 
 ### Secrets (Track C8 / E — set after login)
 
+Agent chat uses **Nebius** when `NEBIUS_API_KEY` is set; otherwise it falls back to **OpenRouter** when `OPENROUTER_API_KEY` is set. If neither is set, replies use a canned offline fallback.
+
 ```bash
+# LLM — prefer Nebius; OpenRouter used when Nebius key absent
 npx @insforge/cli secrets add NEBIUS_API_KEY <your-nebius-key>
-npx @insforge/cli secrets add VAPI_API_KEY <your-vapi-server-key>
+npx @insforge/cli secrets add OPENROUTER_API_KEY <your-openrouter-key>
+
+# Vapi — private/server key for webhook verification (not the public client key)
+npx @insforge/cli secrets add PRIVATE_VAPI_API_KEY <your-vapi-server-key>
 ```
 
-Never commit real keys. See repo root `.env.example`.
+The browser build uses the Vapi **public** key via `VITE_VAPI_PUBLIC_KEY` (see repo root `.env.example`). Never commit real keys.
 
 ## Function contracts
 
@@ -155,10 +161,10 @@ deno task dev
 
 ### 2. Forward Vapi webhooks to the local server
 
-In a second terminal (requires [Vapi CLI](https://docs.vapi.ai/cli) and `VAPI_API_KEY`):
+In a second terminal (requires [Vapi CLI](https://docs.vapi.ai/cli) and `PRIVATE_VAPI_API_KEY`):
 
 ```bash
-export VAPI_API_KEY=<your-vapi-server-key>
+export PRIVATE_VAPI_API_KEY=<your-vapi-server-key>
 vapi listen --forward-to http://127.0.0.1:8787/functions/vapi-webhook
 ```
 
