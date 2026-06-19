@@ -23,6 +23,10 @@ async function discoverWasmExports() {
     return window.__AGENT_SPACE_WASM__;
   }
 
+  if (window.wasmBindings?.on_room_state_sync) {
+    return window.wasmBindings;
+  }
+
   const scripts = [...document.querySelectorAll('script[type="module"][src]')];
   for (const script of scripts) {
     const src = script.getAttribute("src");
@@ -69,6 +73,8 @@ export function initGameBridge(exports) {
     console.info("[game-bridge] WASM bridge ready");
   }
 
+  window.hideAgentSpaceSplash?.();
+
   return true;
 }
 
@@ -91,6 +97,7 @@ export function syncRoomStateToBevy(snapshot) {
 
 /**
  * Forward agent speech into Bevy (Track D5 hook).
+ * Test: notifyAgentSpeech("agent-researcher", "Hi") → WASM on_agent_speech → Talking animation.
  * @param {string} agentId
  * @param {string} text
  */

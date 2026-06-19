@@ -1,6 +1,9 @@
 /**
- * InsForge room-state fetch wrapper (Track B3).
+ * InsForge room-state fetch wrapper (Track B3/B5 + D5 polish).
  * Consumes the frozen RoomSnapshot JSON contract from crates/protocol.
+ *
+ * Bevy sync path: fetchRoomState → emitRoomSnapshot → app.js onRoomState → syncRoomStateToBevy.
+ * Voice tools also call refreshRoomStateAfterVoiceTool() for immediate post-tool sync.
  */
 
 /** @typedef {"idle"|"walking"|"working"|"talking"} AgentState */
@@ -159,7 +162,18 @@ const DEFAULT_POLL_MS = 500;
 let pollTimer = null;
 
 /**
+ * Immediate room-state fetch after a Vapi tool mutates backend state (Track D5).
+ * Test: assign_task via voice → roster + Bevy avatar should update within one round-trip
+ * (does not wait for the 500 ms poll interval).
+ * @returns {Promise<RoomSnapshot>}
+ */
+export async function refreshRoomStateAfterVoiceTool() {
+  return fetchRoomState();
+}
+
+/**
  * Poll room-state on an interval (Track B5).
+ * Each tick emits agent-space:room-state; app.js forwards snapshots to Bevy via game-bridge.
  * @param {{ intervalMs?: number, onError?: (error: unknown) => void }} [options]
  * @returns {() => void} stop polling
  */
