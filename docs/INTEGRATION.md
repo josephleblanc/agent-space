@@ -127,8 +127,9 @@ npx @insforge/cli functions deploy room-state --file insforge/functions/room-sta
 # … agent-chat, vapi-webhook (see insforge/README.md)
 
 cd web && npm run build && trunk build --release
-npx @insforge/cli deployments deploy ../dist \
-  --env '{"VITE_INSFORGE_URL":"https://YOUR_PROJECT.insforge.app","VITE_VAPI_PUBLIC_KEY":"YOUR_PUBLIC_KEY"}'
+npx @insforge/cli deployments env set VITE_INSFORGE_URL https://YOUR_PROJECT.insforge.app
+npx @insforge/cli deployments env set VITE_VAPI_PUBLIC_KEY YOUR_PUBLIC_KEY
+npx @insforge/cli deployments deploy .
 ```
 
 - [ ] Deployed URL loads WASM room

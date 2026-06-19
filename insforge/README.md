@@ -189,3 +189,51 @@ cd web && trunk serve
 Click **Start voice** in the UI. The mic button resumes `AudioContext`, starts an inline `vapi.start({...})` session, and routes `talk_to_agent`, `assign_task`, and `get_room_status` tool calls to `vapi-webhook`.
 
 For production, deploy `vapi-webhook` to InsForge and set `VITE_INSFORGE_URL` to your project URL at build time. No dashboard assistant is required — all assistant config lives in `vapi-bridge.js`.
+
+## Frontend hosting (Track G)
+
+InsForge hosts the WASM shell on Vercel. **Deploy the repo root (source), not `dist/`.** The CLI excludes `dist/`, `build/`, and `node_modules/` from uploads; Vercel runs the Trunk release build remotely using `vercel.json` and `scripts/vercel-build.sh`.
+
+### 1. Set persistent build-time env vars (once per project)
+
+```bash
+npx @insforge/cli deployments env list
+npx @insforge/cli deployments env set VITE_INSFORGE_URL https://YOUR_APP_KEY.us-west.insforge.app
+npx @insforge/cli deployments env set VITE_VAPI_PUBLIC_KEY <your-vapi-public-key>
+```
+
+`web/scripts/write-env.js` reads these during the Vercel build and writes `web/js/env.js`.
+
+### 2. Verify local build (recommended before deploy)
+
+```bash
+cd web && npm ci && npm run build
+cd web && trunk build --release   # output: ../dist/
+```
+
+### 3. Deploy
+
+```bash
+# From repo root — uploads source only; Vercel builds to dist/
+npx @insforge/cli deployments deploy .
+```
+
+Check status after ~1 minute:
+
+```bash
+npx @insforge/cli deployments list
+npx @insforge/cli deployments status <deployment-id>
+```
+
+Live URL: `https://<APP_KEY>.insforge.site` (see `npx @insforge/cli current` for your app key).
+
+### Common mistakes
+
+| Mistake | Fix |
+|---------|-----|
+| `deployments deploy dist` | Use `deployments deploy .` — `dist/` is excluded from upload |
+| 413 on large WASM zip | Do not upload pre-built WASM; let Vercel build from source |
+| `No Output Directory named "public"` | `vercel.json` sets `"outputDirectory": "dist"` |
+| Missing `VITE_*` in browser | Run `deployments env set` before deploy |
+
+CI (`.github/workflows/deploy.yml`) runs the same `deployments deploy .` on push to `main` when `INSFORGE_API_KEY` is configured.

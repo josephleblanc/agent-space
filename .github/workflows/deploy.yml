@@ -67,20 +67,12 @@ jobs:
       - name: Deploy to InsForge (skipped without INSFORGE_API_KEY)
         env:
           INSFORGE_API_KEY: ${{ secrets.INSFORGE_API_KEY }}
-          VITE_INSFORGE_URL: ${{ secrets.VITE_INSFORGE_URL }}
-          VITE_VAPI_PUBLIC_KEY: ${{ secrets.VITE_VAPI_PUBLIC_KEY }}
         run: |
           if [ -z "$INSFORGE_API_KEY" ]; then
             echo "INSFORGE_API_KEY secret not set — build artifact uploaded; deploy skipped."
-            echo "Add repository secrets to enable cloud deploy:"
-            echo "  INSFORGE_API_KEY, VITE_INSFORGE_URL, VITE_VAPI_PUBLIC_KEY"
+            echo "Add INSFORGE_API_KEY to enable cloud deploy."
+            echo "Set VITE_* via: npx @insforge/cli deployments env set (persists on platform)."
             exit 0
           fi
-          DEPLOY_ENV=$(node -e "
-            const env = {};
-            if (process.env.VITE_INSFORGE_URL) env.VITE_INSFORGE_URL = process.env.VITE_INSFORGE_URL;
-            if (process.env.VITE_VAPI_PUBLIC_KEY) env.VITE_VAPI_PUBLIC_KEY = process.env.VITE_VAPI_PUBLIC_KEY;
-            console.log(JSON.stringify(env));
-          ")
-          npx --yes @insforge/cli@latest deployments deploy dist \
-            --env "$DEPLOY_ENV"
+          # Deploy repo root (source). CLI excludes dist/; Vercel builds via vercel.json + scripts/vercel-build.sh.
+          npx --yes @insforge/cli@latest deployments deploy .

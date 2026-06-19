@@ -1,0 +1,12 @@
+target/
+dist/
+.deploy-dist/
+.git/
+.insforge/
+.cursor/
+.github/
+docs/
+insforge/
+*.md
+.env*
+**/*.log
