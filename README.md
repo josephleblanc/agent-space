@@ -59,11 +59,12 @@ Output lands in `dist/`. See `docs/INTEGRATION.md` for the full release-build ch
 
 ### Cloud hosting (InsForge)
 
-Verify the release build locally; deploy uploads source and Vercel runs Trunk on InsForge (29 MB WASM exceeds OSS upload limit):
+Build locally, gzip the WASM into `.deploy-dist/`, then deploy the static bundle:
 
 ```bash
 cd web && npm run build && unset NO_COLOR && trunk build --release
-npx @insforge/cli deployments deploy .
+cd .. && bash scripts/prepare-deploy-bundle.sh
+npx @insforge/cli deployments deploy .deploy-dist
 ```
 
 See `insforge/README.md` for backend setup and deploy troubleshooting.
