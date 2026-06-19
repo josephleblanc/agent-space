@@ -53,9 +53,9 @@ jobs:
 
       - name: Trunk release build
         working-directory: web
-        env:
-          NO_COLOR: ""
-        run: trunk build --release
+        run: |
+          unset NO_COLOR
+          trunk build --release
 
       - name: Upload dist artifact
         uses: actions/upload-artifact@v4
