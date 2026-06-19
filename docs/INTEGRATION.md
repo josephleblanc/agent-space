@@ -126,15 +126,26 @@ npx @insforge/cli link
 npx @insforge/cli functions deploy room-state --file insforge/functions/room-state/index.ts
 # … agent-chat, vapi-webhook (see insforge/README.md)
 
-# Build WASM + browser env locally; deploy gzip static bundle to InsForge
-cd web && npm run build && unset NO_COLOR && trunk build --release
-cd .. && bash scripts/prepare-deploy-bundle.sh
-npx @insforge/cli deployments deploy .deploy-dist
+# Set persistent deployment env vars (required for voice + room-state in production)
+npx @insforge/cli deployments env set VITE_INSFORGE_URL https://<APPKEY>.<region>.insforge.app
+npx @insforge/cli deployments env set VITE_VAPI_PUBLIC_KEY <your-vapi-public-key>
+npx @insforge/cli deployments env list   # verify both keys are present
+
+# Source deploy: InsForge uploads repo and runs scripts/vercel-build.sh on Vercel (WASM too large for direct upload)
+npx @insforge/cli deployments deploy .
 ```
 
-Set `VITE_INSFORGE_URL` and `VITE_VAPI_PUBLIC_KEY` in `.env` (or CI secrets) **before** `npm run build` — they are baked into `web/js/env.js`.
+`scripts/vercel-build.sh` exports `VITE_INSFORGE_URL` (with fallbacks to `INSFORGE_URL` / `OSS_HOST` / project OSS host) and passes through `VITE_VAPI_PUBLIC_KEY` before `npm run build`, so `web/js/env.js` is baked into the hosted bundle.
+
+Verify after deploy:
+
+```bash
+curl -s https://<APPKEY>.insforge.site/js/env.js | grep VITE_INSFORGE_URL
+# value should be non-empty (do not paste secrets into tickets)
+```
 
 - [ ] Deployed URL loads WASM room
+- [ ] `js/env.js` has non-empty `VITE_INSFORGE_URL` (and `VITE_VAPI_PUBLIC_KEY` when voice is required)
 - [ ] Room-state hits cloud edge functions (not localhost)
 - [ ] Voice works against deployed webhook URL
 

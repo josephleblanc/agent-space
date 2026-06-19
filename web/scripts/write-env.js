@@ -13,6 +13,14 @@ const outFile = resolve(webDir, "js/env.js");
 
 const KEYS = ["VITE_VAPI_PUBLIC_KEY", "VITE_INSFORGE_URL"];
 
+/** InsForge/Vercel may inject these instead of VITE_INSFORGE_URL during remote builds. */
+const INSFORGE_URL_ALIASES = [
+  "VITE_INSFORGE_URL",
+  "INSFORGE_URL",
+  "OSS_HOST",
+  "INSFORGE_OSS_HOST",
+];
+
 /** @type {Record<string, string>} */
 const values = Object.fromEntries(KEYS.map((key) => [key, ""]));
 
@@ -39,6 +47,23 @@ if (existsSync(envFile)) {
 for (const key of KEYS) {
   if (process.env[key]) {
     values[key] = process.env[key];
+  }
+}
+
+if (!values.VITE_INSFORGE_URL) {
+  for (const alias of INSFORGE_URL_ALIASES) {
+    if (process.env[alias]) {
+      values.VITE_INSFORGE_URL = process.env[alias];
+      break;
+    }
+  }
+}
+
+if (!values.VITE_INSFORGE_URL) {
+  const appkey = process.env.INSFORGE_APPKEY || process.env.APPKEY;
+  const region = process.env.INSFORGE_REGION || process.env.REGION;
+  if (appkey && region) {
+    values.VITE_INSFORGE_URL = `https://${appkey}.${region}.insforge.app`;
   }
 }
 
