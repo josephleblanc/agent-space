@@ -3,8 +3,22 @@
  * Updates the agent roster from api-client events; mic button drives Vapi (Track D).
  */
 
-import { fetchRoomState, onRoomState } from "./api-client.js";
+import {
+  fetchRoomState,
+  onRoomState,
+  startRoomStatePoll,
+} from "./api-client.js";
+import {
+  CANNED_MODE,
+  isCannedModeActive,
+  startCannedMode,
+  stopCannedMode,
+} from "./canned-mode.js";
 import { initDevInject } from "./dev-inject.js";
+import {
+  syncRoomStateToBevy,
+  waitForGameBridge,
+} from "./game-bridge.js";
 import { bindMicButton, initVapiBridge } from "./vapi-bridge.js";
 
 const STATE_LABELS = {
@@ -91,21 +105,49 @@ function bindRosterToggle() {
   });
 }
 
+function bindRoomStateBridge() {
+  onRoomState(({ snapshot }) => {
+    updateRoster(snapshot);
+    syncRoomStateToBevy(snapshot);
+  });
+}
+
+function startLivePolling() {
+  startRoomStatePoll({
+    onError: (error) => {
+      if (!isCannedModeActive()) {
+        console.warn("[app] room-state poll failed; enabling canned mode:", error);
+        startCannedMode();
+      }
+    },
+  });
+}
+
 async function bootstrap() {
   initVapiBridge();
   bindMicButton();
   bindRosterToggle();
   initDevInject();
+  bindRoomStateBridge();
 
-  onRoomState(({ snapshot }) => {
-    updateRoster(snapshot);
-  });
+  await waitForGameBridge();
+
+  if (CANNED_MODE) {
+    console.info("[app] ?canned=1 — starting scripted demo cycle");
+    startCannedMode();
+    return;
+  }
 
   try {
     await fetchRoomState();
+    stopCannedMode();
   } catch (error) {
-    console.warn("[app] initial room-state fetch failed (dev mocks still work):", error);
+    console.warn("[app] initial room-state fetch failed; enabling canned mode:", error);
+    startCannedMode();
+    return;
   }
+
+  startLivePolling();
 }
 
 bootstrap();

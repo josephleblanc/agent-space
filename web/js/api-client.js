@@ -153,4 +153,40 @@ export async function fetchRoomState(init = {}) {
   return snapshot;
 }
 
+const DEFAULT_POLL_MS = 500;
+
+/** @type {ReturnType<typeof setInterval>|null} */
+let pollTimer = null;
+
+/**
+ * Poll room-state on an interval (Track B5).
+ * @param {{ intervalMs?: number, onError?: (error: unknown) => void }} [options]
+ * @returns {() => void} stop polling
+ */
+export function startRoomStatePoll(options = {}) {
+  const { intervalMs = DEFAULT_POLL_MS, onError } = options;
+
+  if (pollTimer !== null) {
+    window.clearInterval(pollTimer);
+  }
+
+  const tick = async () => {
+    try {
+      await fetchRoomState();
+    } catch (error) {
+      onError?.(error);
+    }
+  };
+
+  tick();
+  pollTimer = window.setInterval(tick, intervalMs);
+
+  return () => {
+    if (pollTimer !== null) {
+      window.clearInterval(pollTimer);
+      pollTimer = null;
+    }
+  };
+}
+
 export { ROOM_STATE_EVENT };

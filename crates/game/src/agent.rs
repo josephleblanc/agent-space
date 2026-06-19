@@ -6,6 +6,7 @@ use protocol::AgentState;
 
 use crate::animation::AgentAnimationBundle;
 use crate::manifest::{AgentManifestEntry, AssetManifest};
+use crate::bridge::BridgeSyncActive;
 use crate::movement::MovementPath;
 use crate::world::protocol_to_world;
 
@@ -198,10 +199,15 @@ fn spawn_name_label(commands: &mut Commands, agent: Entity, name: &str) {
 
 /// Demo patrol: rotate one agent through walking to another station.
 pub fn run_demo_patrol(
+    bridge_active: Option<Res<BridgeSyncActive>>,
     time: Res<Time>,
     mut commands: Commands,
     mut agents: Query<(Entity, &mut Agent, &Transform), Without<MovementPath>>,
 ) {
+    if bridge_active.map(|active| active.0).unwrap_or(false) {
+        return;
+    }
+
     let phase = (time.elapsed_secs() / 10.0) as i32 % 4;
 
     for (entity, mut agent, transform) in &mut agents {

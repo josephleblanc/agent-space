@@ -8,7 +8,7 @@ use crate::{
     bridge::BridgePlugin,
     camera::CameraPlugin,
     lighting::LightingPlugin,
-    manifest::AssetManifest,
+    manifest::ManifestPlugin,
     movement::{agent_movement, assign_paths_for_walking_agents},
     room::RoomPlugin,
     room_sync::RoomSyncPlugin,
@@ -20,27 +20,27 @@ pub struct GamePlugin;
 
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(AssetManifest::load_embedded())
-            .add_plugins((
-                BridgePlugin,
-                CameraPlugin,
-                LightingPlugin,
-                RoomPlugin,
-                StationPlugin,
-                AnimationPlugin,
-                RoomSyncPlugin,
-            ))
-            .add_systems(Startup, spawn_agents)
-            .add_systems(
-                Update,
-                (
-                    assign_paths_for_walking_agents,
-                    run_demo_patrol,
-                    agent_movement,
-                    update_agent_states,
-                    orient_name_labels,
-                    animate_capsule_fallback,
-                ),
-            );
+        app.add_plugins((
+            BridgePlugin,
+            ManifestPlugin,
+            CameraPlugin,
+            LightingPlugin,
+            RoomPlugin,
+            StationPlugin,
+            AnimationPlugin,
+            RoomSyncPlugin,
+        ))
+        .add_systems(Startup, spawn_agents)
+        .add_systems(
+            Update,
+            (
+                assign_paths_for_walking_agents,
+                run_demo_patrol,
+                agent_movement,
+                update_agent_states,
+                orient_name_labels,
+                animate_capsule_fallback,
+            ),
+        );
     }
 }
