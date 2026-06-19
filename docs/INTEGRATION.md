@@ -149,13 +149,25 @@ curl -s https://<APPKEY>.insforge.site/js/env.js | grep VITE_INSFORGE_URL
 - [ ] Room-state hits cloud edge functions (not localhost)
 - [ ] Voice works against deployed webhook URL
 
+## Production URLs (agent-space-insforge)
+
+| Surface | URL |
+|---------|-----|
+| InsForge API (edge functions) | `https://6ns446hp.us-west.insforge.app` |
+| `room-state` | `https://6ns446hp.us-west.insforge.app/functions/room-state` |
+| `agent-chat` | `https://6ns446hp.us-west.insforge.app/functions/agent-chat` |
+| `vapi-webhook` | `https://6ns446hp.us-west.insforge.app/functions/vapi-webhook` |
+| Hosted WASM shell | `https://6ns446hp.insforge.site` |
+
+Cloud smoke (2026-06-19): `room-state` returns **4** agents (HTTP 200). `agent-chat` for `agent-researcher` returns non-empty `speech` without the canned `(LLM offline; using canned reply.)` suffix. `get_room_status` via `vapi-webhook` returns `{ results: [{ toolCallId, result: { agents, tasks, active_tasks } }] }` when `X-Vapi-Secret` matches deployment `PRIVATE_VAPI_API_KEY` / `VAPI_API_KEY` (unauthenticated calls get HTTP 401).
+
 ## Sign-off
 
 | Area | Owner | Pass? | Notes |
 |------|-------|-------|-------|
-| Edge functions | Track C | | |
-| Browser poll + bridge | Track B | | |
-| Bevy movement | Track A | | |
-| Voice + tools | Track D | | |
-| Nebius replies + DB | Track E | | |
-| Release build | Track G | | |
+| Edge functions | Track C | Yes | Cloud smoke on API base above; see Production URLs |
+| Browser poll + bridge | Track B | Partial | Shell at `https://6ns446hp.insforge.site`; verify `js/env.js` has non-empty `VITE_INSFORGE_URL` after latest deploy |
+| Bevy movement | Track A | | Local / hosted manual |
+| Voice + tools | Track D | Yes | `get_room_status` tool shape verified on cloud webhook |
+| Nebius replies + DB | Track E | Yes | Researcher cloud reply is live LLM speech (not canned offline) |
+| Release build | Track G | | CI + `scripts/vercel-build.sh` on InsForge deploy |
