@@ -4,7 +4,9 @@ mod camera;
 mod lighting;
 mod manifest;
 mod movement;
+mod plugin;
 mod room;
+mod state;
 mod station;
 mod world;
 
@@ -12,14 +14,7 @@ use bevy::app::PluginGroupBuilder;
 use bevy::asset::AssetMetaCheck;
 use bevy::prelude::*;
 
-use agent::AgentPlugin;
-use animation::AnimationPlugin;
-use camera::CameraPlugin;
-use lighting::LightingPlugin;
-use manifest::ManifestPlugin;
-use movement::MovementPlugin;
-use room::RoomPlugin;
-use station::StationPlugin;
+use plugin::GamePlugin;
 
 fn main() {
     #[cfg(target_arch = "wasm32")]
@@ -31,19 +26,11 @@ fn main() {
     App::new()
         .insert_resource(ClearColor(Color::srgb(0.05, 0.05, 0.1)))
         .add_plugins(wasm_safe_default_plugins())
-        .add_plugins((
-            ManifestPlugin,
-            CameraPlugin,
-            LightingPlugin,
-            RoomPlugin,
-            StationPlugin,
-            AgentPlugin,
-            MovementPlugin,
-            AnimationPlugin,
-        ))
+        .add_plugins(GamePlugin)
         .run();
 }
 
+/// DefaultPlugins subset safe for WASM (WebGL2) and native dev.
 fn wasm_safe_default_plugins() -> PluginGroupBuilder {
     DefaultPlugins
         .set(WindowPlugin {

@@ -51,14 +51,6 @@ impl AssetManifest {
     }
 }
 
-pub struct ManifestPlugin;
-
-impl bevy::prelude::Plugin for ManifestPlugin {
-    fn build(&self, app: &mut bevy::prelude::App) {
-        app.insert_resource(AssetManifest::load_embedded());
-    }
-}
-
 fn parse_hex_color(hex: &str) -> Color {
     let hex = hex.trim_start_matches('#');
     if hex.len() != 6 {
