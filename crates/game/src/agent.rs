@@ -5,6 +5,7 @@ use bevy::scene::SceneInstanceReady;
 use protocol::AgentState;
 
 use crate::animation::AgentAnimationBundle;
+use crate::assets_util::game_asset;
 use crate::manifest::{AgentManifestEntry, AssetManifest};
 use crate::bridge::BridgeSyncActive;
 use crate::movement::MovementPath;
@@ -155,7 +156,7 @@ fn spawn_gltf_scene(
     entry: &AgentManifestEntry,
     capsule_entity: Entity,
 ) {
-    let gltf_path = entry.gltf.clone();
+    let gltf_path = game_asset(&entry.gltf);
     commands.entity(parent).with_children(|parent_cmd| {
         parent_cmd
             .spawn((

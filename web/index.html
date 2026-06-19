@@ -4,6 +4,16 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Agent Space</title>
+    <script>
+      // Register before Trunk's head WASM bootstrap so we do not miss the event.
+      window.hideAgentSpaceSplash = function hideAgentSpaceSplash() {
+        const splash = document.getElementById("splash");
+        if (splash && !splash.classList.contains("hidden")) {
+          splash.classList.add("hidden");
+        }
+      };
+      window.addEventListener("TrunkApplicationStarted", window.hideAgentSpaceSplash);
+    </script>
     <link data-trunk rel="css" href="css/style.css" />
     <link
       data-trunk
@@ -117,16 +127,11 @@
       bindAudioResume();
       window.resumeAudioContext = resumeAudioContext;
 
-      function hideSplash() {
-        const splash = document.getElementById("splash");
-        if (splash) {
-          splash.classList.add("hidden");
-        }
-      }
-
-      window.addEventListener("TrunkApplicationStarted", hideSplash);
       window.addEventListener("load", () => {
-        window.setTimeout(hideSplash, 15000);
+        if (window.wasmBindings) {
+          window.hideAgentSpaceSplash?.();
+        }
+        window.setTimeout(() => window.hideAgentSpaceSplash?.(), 8000);
       });
     </script>
     <script src="js/env.js"></script>

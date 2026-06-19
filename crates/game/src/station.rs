@@ -2,7 +2,9 @@
 
 use bevy::prelude::*;
 
+use crate::assets_util::game_asset;
 use crate::manifest::AssetManifest;
+use crate::obj_loader::{ObjMesh, ObjPropHandle};
 use crate::world::FLOOR_Y;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -127,11 +129,166 @@ fn fallback_position(index: usize) -> Vec3 {
     Vec3::new(angle.cos() * 4.0, FLOOR_Y, angle.sin() * 4.0)
 }
 
+#[derive(Clone, Copy)]
+struct PropPlacement {
+    model_suffix: &'static str,
+    offset: Vec3,
+    rotation_y: f32,
+    target_size: f32,
+    material: PropMaterial,
+}
+
+#[derive(Clone, Copy)]
+enum PropMaterial {
+    Wood,
+    Metal,
+    Fabric,
+    Plant,
+}
+
+fn station_prop_layout(station_id: &str) -> &'static [PropPlacement] {
+    match station_id {
+        "research" => &RESEARCH_PROPS,
+        "code" => &CODE_PROPS,
+        "meet" => &MEET_PROPS,
+        "lounge" => &LOUNGE_PROPS,
+        _ => &[],
+    }
+}
+
+const RESEARCH_PROPS: [PropPlacement; 3] = [
+    PropPlacement {
+        model_suffix: "desk.obj",
+        offset: Vec3::ZERO,
+        rotation_y: 0.0,
+        target_size: 1.6,
+        material: PropMaterial::Wood,
+    },
+    PropPlacement {
+        model_suffix: "bookcaseOpen.obj",
+        offset: Vec3::new(-0.85, 0.0, -0.35),
+        rotation_y: 0.15,
+        target_size: 1.2,
+        material: PropMaterial::Wood,
+    },
+    PropPlacement {
+        model_suffix: "pottedPlant.obj",
+        offset: Vec3::new(0.75, 0.0, -0.45),
+        rotation_y: 0.0,
+        target_size: 0.7,
+        material: PropMaterial::Plant,
+    },
+];
+
+const CODE_PROPS: [PropPlacement; 4] = [
+    PropPlacement {
+        model_suffix: "deskCorner.obj",
+        offset: Vec3::ZERO,
+        rotation_y: 0.0,
+        target_size: 1.4,
+        material: PropMaterial::Wood,
+    },
+    PropPlacement {
+        model_suffix: "computerScreen.obj",
+        offset: Vec3::new(0.0, 0.55, -0.12),
+        rotation_y: 0.0,
+        target_size: 0.55,
+        material: PropMaterial::Metal,
+    },
+    PropPlacement {
+        model_suffix: "laptop.obj",
+        offset: Vec3::new(0.25, 0.52, 0.08),
+        rotation_y: -0.35,
+        target_size: 0.35,
+        material: PropMaterial::Metal,
+    },
+    PropPlacement {
+        model_suffix: "chairDesk.obj",
+        offset: Vec3::new(0.0, 0.0, 0.85),
+        rotation_y: std::f32::consts::PI,
+        target_size: 0.9,
+        material: PropMaterial::Fabric,
+    },
+];
+
+const MEET_PROPS: [PropPlacement; 5] = [
+    PropPlacement {
+        model_suffix: "tableRound.obj",
+        offset: Vec3::ZERO,
+        rotation_y: 0.0,
+        target_size: 1.8,
+        material: PropMaterial::Wood,
+    },
+    PropPlacement {
+        model_suffix: "chairRounded.obj",
+        offset: Vec3::new(-0.75, 0.0, 0.75),
+        rotation_y: -0.9,
+        target_size: 0.75,
+        material: PropMaterial::Fabric,
+    },
+    PropPlacement {
+        model_suffix: "chairRounded.obj",
+        offset: Vec3::new(0.75, 0.0, 0.75),
+        rotation_y: 0.9,
+        target_size: 0.75,
+        material: PropMaterial::Fabric,
+    },
+    PropPlacement {
+        model_suffix: "chairRounded.obj",
+        offset: Vec3::new(-0.75, 0.0, -0.75),
+        rotation_y: -2.4,
+        target_size: 0.75,
+        material: PropMaterial::Fabric,
+    },
+    PropPlacement {
+        model_suffix: "chairRounded.obj",
+        offset: Vec3::new(0.75, 0.0, -0.75),
+        rotation_y: 2.4,
+        target_size: 0.75,
+        material: PropMaterial::Fabric,
+    },
+];
+
+const LOUNGE_PROPS: [PropPlacement; 3] = [
+    PropPlacement {
+        model_suffix: "loungeSofa.obj",
+        offset: Vec3::new(-0.35, 0.0, 0.0),
+        rotation_y: 0.0,
+        target_size: 1.6,
+        material: PropMaterial::Fabric,
+    },
+    PropPlacement {
+        model_suffix: "loungeChair.obj",
+        offset: Vec3::new(0.85, 0.0, 0.35),
+        rotation_y: -0.55,
+        target_size: 0.95,
+        material: PropMaterial::Fabric,
+    },
+    PropPlacement {
+        model_suffix: "sideTable.obj",
+        offset: Vec3::new(0.75, 0.0, -0.45),
+        rotation_y: 0.0,
+        target_size: 0.55,
+        material: PropMaterial::Wood,
+    },
+];
+
+#[derive(Component)]
+struct ProceduralPropFallback;
+
+#[derive(Component)]
+struct PendingObjProp {
+    fallback: Entity,
+    material: Handle<StandardMaterial>,
+    transform: Transform,
+}
+
 pub struct StationPlugin;
 
 impl Plugin for StationPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, (init_station_layout, spawn_stations).chain());
+        app.add_systems(Startup, (init_station_layout, spawn_stations).chain())
+            .add_systems(Update, finalize_loaded_obj_props);
     }
 }
 
@@ -146,6 +303,35 @@ fn spawn_stations(
     layout: Res<StationLayout>,
     asset_server: Res<AssetServer>,
 ) {
+    let wood = materials.add(StandardMaterial {
+        base_color: Color::srgb(0.55, 0.42, 0.30),
+        ..default()
+    });
+    let metal = materials.add(StandardMaterial {
+        base_color: Color::srgb(0.65, 0.68, 0.72),
+        ..default()
+    });
+    let fabric = materials.add(StandardMaterial {
+        base_color: Color::srgb(0.35, 0.45, 0.62),
+        ..default()
+    });
+    let plant = materials.add(StandardMaterial {
+        base_color: Color::srgb(0.28, 0.55, 0.32),
+        ..default()
+    });
+    let ring = materials.add(StandardMaterial {
+        base_color: Color::srgba(0.9, 0.9, 1.0, 0.25),
+        alpha_mode: AlphaMode::Blend,
+        unlit: true,
+        ..default()
+    });
+    let material_handles = PropMaterialHandles {
+        wood,
+        metal,
+        fabric,
+        plant,
+    };
+
     for station in &layout.stations {
         let marker = StationMarker {
             id: station.id.clone(),
@@ -164,168 +350,145 @@ fn spawn_stations(
         spawn_station_props(
             &mut commands,
             &mut meshes,
-            &mut materials,
             &asset_server,
             root,
             station,
+            &material_handles,
         );
+
+        commands.entity(root).with_children(|parent| {
+            parent.spawn((
+                Mesh3d(meshes.add(Cylinder::new(0.9, 0.02))),
+                MeshMaterial3d(ring.clone()),
+                Transform::from_xyz(0.0, 0.02, 0.0),
+            ));
+        });
+    }
+}
+
+struct PropMaterialHandles {
+    wood: Handle<StandardMaterial>,
+    metal: Handle<StandardMaterial>,
+    fabric: Handle<StandardMaterial>,
+    plant: Handle<StandardMaterial>,
+}
+
+impl PropMaterialHandles {
+    fn resolve(&self, material: PropMaterial) -> Handle<StandardMaterial> {
+        match material {
+            PropMaterial::Wood => self.wood.clone(),
+            PropMaterial::Metal => self.metal.clone(),
+            PropMaterial::Fabric => self.fabric.clone(),
+            PropMaterial::Plant => self.plant.clone(),
+        }
     }
 }
 
 fn spawn_station_props(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
     asset_server: &AssetServer,
     parent: Entity,
     station: &StationDef,
+    materials: &PropMaterialHandles,
 ) {
-    let wood = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.55, 0.42, 0.30),
-        ..default()
-    });
-    let metal = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.65, 0.68, 0.72),
-        ..default()
-    });
-    let fabric = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.35, 0.45, 0.62),
-        ..default()
-    });
-    let plant = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.28, 0.55, 0.32),
-        ..default()
-    });
+    for placement in station_prop_layout(&station.id) {
+        let Some(model_path) = station
+            .models
+            .iter()
+            .find(|path| path.ends_with(placement.model_suffix))
+        else {
+            continue;
+        };
 
-    for model_path in &station.models {
-        let _handle: Handle<Mesh> = asset_server.load(model_path.clone());
-    }
+        let fallback = spawn_procedural_fallback(commands, meshes, parent, *placement, materials);
 
-    match station.id.as_str() {
-        "research" => {
-            spawn_prop(commands, meshes, wood.clone(), parent, Vec3::ZERO, Vec3::new(1.6, 0.75, 0.8));
-            spawn_prop(
-                commands,
-                meshes,
-                wood.clone(),
-                parent,
-                Vec3::new(-1.1, 0.0, -0.4),
-                Vec3::new(0.5, 1.4, 0.35),
-            );
-            spawn_prop(
-                commands,
-                meshes,
-                plant,
-                parent,
-                Vec3::new(1.0, 0.0, -0.6),
-                Vec3::new(0.35, 0.5, 0.35),
-            );
-        }
-        "code" => {
-            spawn_prop(
-                commands,
-                meshes,
-                wood.clone(),
-                parent,
-                Vec3::new(0.0, 0.0, 0.0),
-                Vec3::new(1.4, 0.75, 0.7),
-            );
-            spawn_prop(
-                commands,
-                meshes,
-                metal.clone(),
-                parent,
-                Vec3::new(0.0, 0.85, -0.15),
-                Vec3::new(0.55, 0.45, 0.08),
-            );
-            spawn_prop(
-                commands,
-                meshes,
-                fabric,
-                parent,
-                Vec3::new(0.0, 0.0, 1.0),
-                Vec3::new(0.55, 0.85, 0.55),
-            );
-        }
-        "meet" => {
-            spawn_prop(
-                commands,
-                meshes,
-                wood.clone(),
-                parent,
-                Vec3::ZERO,
-                Vec3::new(2.0, 0.45, 2.0),
-            );
-            for offset in [(-0.9, 0.9), (0.9, 0.9), (-0.9, -0.9), (0.9, -0.9)] {
-                spawn_prop(
-                    commands,
-                    meshes,
-                    fabric.clone(),
-                    parent,
-                    Vec3::new(offset.0, 0.0, offset.1),
-                    Vec3::new(0.45, 0.75, 0.45),
-                );
-            }
-        }
-        "lounge" => {
-            spawn_prop(
-                commands,
-                meshes,
-                fabric.clone(),
-                parent,
-                Vec3::new(-0.5, 0.0, 0.0),
-                Vec3::new(1.6, 0.55, 0.75),
-            );
-            spawn_prop(
-                commands,
-                meshes,
-                fabric.clone(),
-                parent,
-                Vec3::new(0.9, 0.0, 0.4),
-                Vec3::new(0.65, 0.65, 0.65),
-            );
-            spawn_prop(
-                commands,
-                meshes,
-                wood,
-                parent,
-                Vec3::new(0.8, 0.0, -0.5),
-                Vec3::new(0.45, 0.35, 0.45),
-            );
-        }
-        _ => {
-            spawn_prop(commands, meshes, metal, parent, Vec3::ZERO, Vec3::new(1.0, 0.5, 1.0));
-        }
-    }
+        let material = materials.resolve(placement.material);
+        let transform = Transform {
+            translation: placement.offset,
+            rotation: Quat::from_rotation_y(placement.rotation_y),
+            scale: Vec3::splat(placement.target_size),
+        };
 
-    let ring = materials.add(StandardMaterial {
-        base_color: Color::srgba(0.9, 0.9, 1.0, 0.25),
-        alpha_mode: AlphaMode::Blend,
-        unlit: true,
-        ..default()
-    });
-    commands
-        .spawn((
-            Mesh3d(meshes.add(Cylinder::new(0.9, 0.02))),
-            MeshMaterial3d(ring),
-            Transform::from_xyz(0.0, 0.02, 0.0),
-        ))
-        .insert(ChildOf(parent));
-}
+        let obj_handle: Handle<ObjMesh> = asset_server.load(game_asset(model_path));
 
-fn spawn_prop(
-    commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    material: Handle<StandardMaterial>,
-    parent: Entity,
-    offset: Vec3,
-    size: Vec3,
-) {
-    commands
-        .spawn((
-            Mesh3d(meshes.add(Cuboid::new(size.x, size.y, size.z))),
-            MeshMaterial3d(material),
-            Transform::from_translation(offset + Vec3::new(0.0, size.y * 0.5, 0.0)),
+        commands.spawn((
+            PendingObjProp {
+                fallback,
+                material,
+                transform,
+            },
+            ObjPropHandle(obj_handle),
             ChildOf(parent),
         ));
+    }
+}
+
+fn spawn_procedural_fallback(
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    parent: Entity,
+    placement: PropPlacement,
+    materials: &PropMaterialHandles,
+) -> Entity {
+    let (size, y_lift) = procedural_size_for(placement.model_suffix);
+    let material = materials.resolve(placement.material);
+    let mut entity = Entity::PLACEHOLDER;
+    commands.entity(parent).with_children(|parent_cmd| {
+        entity = parent_cmd
+            .spawn((
+                ProceduralPropFallback,
+                Mesh3d(meshes.add(Cuboid::new(size.x, size.y, size.z))),
+                MeshMaterial3d(material),
+                Transform {
+                    translation: placement.offset + Vec3::new(0.0, size.y * 0.5 + y_lift, 0.0),
+                    rotation: Quat::from_rotation_y(placement.rotation_y),
+                    scale: Vec3::ONE,
+                },
+            ))
+            .id();
+    });
+    entity
+}
+
+fn procedural_size_for(model_suffix: &str) -> (Vec3, f32) {
+    match model_suffix {
+        "desk.obj" | "deskCorner.obj" => (Vec3::new(1.6, 0.75, 0.8), 0.0),
+        "bookcaseOpen.obj" => (Vec3::new(0.5, 1.4, 0.35), 0.0),
+        "pottedPlant.obj" => (Vec3::new(0.35, 0.5, 0.35), 0.0),
+        "computerScreen.obj" => (Vec3::new(0.55, 0.45, 0.08), 0.55),
+        "laptop.obj" => (Vec3::new(0.35, 0.05, 0.25), 0.52),
+        "chairDesk.obj" | "chairRounded.obj" | "loungeChair.obj" => {
+            (Vec3::new(0.55, 0.85, 0.55), 0.0)
+        }
+        "tableRound.obj" => (Vec3::new(2.0, 0.45, 2.0), 0.0),
+        "loungeSofa.obj" => (Vec3::new(1.6, 0.55, 0.75), 0.0),
+        "sideTable.obj" => (Vec3::new(0.45, 0.35, 0.45), 0.0),
+        _ => (Vec3::new(1.0, 0.5, 1.0), 0.0),
+    }
+}
+
+fn finalize_loaded_obj_props(
+    mut commands: Commands,
+    obj_meshes: Res<Assets<ObjMesh>>,
+    pending: Query<(Entity, &PendingObjProp, &ObjPropHandle)>,
+    mut meshes: ResMut<Assets<Mesh>>,
+) {
+    for (entity, pending_prop, obj_handle) in &pending {
+        let Some(obj) = obj_meshes.get(&obj_handle.0) else {
+            continue;
+        };
+
+        commands.entity(pending_prop.fallback).despawn();
+        commands.entity(entity).insert((
+            Mesh3d(meshes.add(obj.0.clone())),
+            MeshMaterial3d(pending_prop.material.clone()),
+            pending_prop.transform,
+            Visibility::default(),
+        ));
+        commands
+            .entity(entity)
+            .remove::<PendingObjProp>()
+            .remove::<ObjPropHandle>();
+    }
 }

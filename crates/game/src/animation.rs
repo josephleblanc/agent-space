@@ -6,6 +6,7 @@ use bevy::prelude::*;
 use protocol::AgentState;
 
 use crate::agent::Agent;
+use crate::assets_util::game_asset;
 use crate::manifest::{animation_index, AgentManifestEntry};
 
 #[derive(Component)]
@@ -40,7 +41,7 @@ impl AgentAnimationBundle {
         Self {
             agent_key: agent_key.to_string(),
             clips: AgentAnimationClips {
-                gltf_path: entry.gltf.clone(),
+                gltf_path: game_asset(&entry.gltf),
                 idle: clip_index(&entry.animations.idle),
                 walking: clip_index(&entry.animations.walking),
                 working: clip_index(&entry.animations.working),
