@@ -142,12 +142,44 @@ cd insforge
 deno task check
 ```
 
-## Vapi local webhook forwarding (Track D)
+## Vapi local webhook forwarding (Track D6)
 
-When testing voice against local functions:
+Voice calls from the browser hit Vapi Cloud, which must reach your `vapi-webhook` edge function. For local development, forward Vapi events with the CLI:
+
+### 1. Start local edge functions
 
 ```bash
+cd insforge
+deno task dev
+```
+
+### 2. Forward Vapi webhooks to the local server
+
+In a second terminal (requires [Vapi CLI](https://docs.vapi.ai/cli) and `VAPI_API_KEY`):
+
+```bash
+export VAPI_API_KEY=<your-vapi-server-key>
 vapi listen --forward-to http://127.0.0.1:8787/functions/vapi-webhook
 ```
 
-Set `VAPI_API_KEY` in the environment so the webhook auth check passes.
+`vapi listen` tunnels Vapi Cloud tool-call webhooks to your local Deno server. The ephemeral assistant in `web/js/vapi-bridge.js` points its `server.url` at the same endpoint (default `http://127.0.0.1:8787/functions/vapi-webhook`, or `VITE_INSFORGE_URL` + `/functions/vapi-webhook` when set).
+
+### 3. Run the browser shell with a Vapi public key
+
+```bash
+# repo root — copy .env.example and set keys
+cp .env.example .env
+# VITE_VAPI_PUBLIC_KEY=<your-vapi-public-key>
+# VITE_INSFORGE_URL=http://127.0.0.1:8787
+
+cd web
+npm install
+npm run build   # writes js/env.js from .env
+
+cd ..
+cd web && trunk serve
+```
+
+Click **Start voice** in the UI. The mic button resumes `AudioContext`, starts an inline `vapi.start({...})` session, and routes `talk_to_agent`, `assign_task`, and `get_room_status` tool calls to `vapi-webhook`.
+
+For production, deploy `vapi-webhook` to InsForge and set `VITE_INSFORGE_URL` to your project URL at build time. No dashboard assistant is required — all assistant config lives in `vapi-bridge.js`.

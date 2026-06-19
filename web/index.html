@@ -14,17 +14,87 @@
     />
   </head>
   <body>
-    <div id="splash" aria-live="polite">
-      <div class="splash-content">
-        <h1>Agent Space</h1>
-        <p>Loading hangout room…</p>
-        <div class="spinner" role="status" aria-label="Loading"></div>
+    <div id="app">
+      <div id="splash" aria-live="polite">
+        <div class="splash-content">
+          <h1>Agent Space</h1>
+          <p>Loading hangout room…</p>
+          <div class="spinner" role="status" aria-label="Loading"></div>
+        </div>
       </div>
+
+      <main id="game-shell">
+        <div id="viewport-frame">
+          <canvas id="bevy-canvas"></canvas>
+        </div>
+
+        <aside id="agent-roster" aria-label="Agent roster">
+          <header class="roster-header">
+            <h2>Agents</h2>
+            <button
+              id="roster-toggle"
+              type="button"
+              class="icon-button"
+              aria-expanded="true"
+              aria-controls="agent-roster-list"
+              title="Toggle roster"
+            >
+              ‹
+            </button>
+          </header>
+          <p id="agent-roster-empty" hidden>No agents in room.</p>
+          <ul id="agent-roster-list"></ul>
+          <footer class="roster-footer">
+            <span class="roster-stat-label">Active tasks</span>
+            <span id="task-count" class="roster-stat-value">0</span>
+          </footer>
+        </aside>
+      </main>
+
+      <footer id="controls">
+        <button
+          id="mic-button"
+          type="button"
+          class="mic-button"
+          aria-label="Start voice call"
+          aria-pressed="false"
+          title="Start Vapi voice session"
+        >
+          <span class="mic-icon" aria-hidden="true"></span>
+          <span class="mic-label">Start voice</span>
+        </button>
+      </footer>
+
+      <aside id="dev-panel" class="dev-panel" hidden aria-label="Developer tools">
+        <header class="dev-panel-header">
+          <h2>Dev Inject</h2>
+          <button id="dev-toggle-inject" type="button" class="dev-button">
+            Toggle inject mode
+          </button>
+        </header>
+        <p class="dev-hint">
+          Alt+D toggles this panel. With inject mode on: press <kbd>1</kbd> idle,
+          <kbd>2</kbd> walking, <kbd>3</kbd> working, <kbd>4</kbd> mixed.
+        </p>
+        <p class="dev-url">
+          <span>room-state:</span>
+          <code id="dev-room-state-url"></code>
+        </p>
+        <div class="dev-actions">
+          <button type="button" class="dev-button" data-mock-preset="idle">Idle</button>
+          <button type="button" class="dev-button" data-mock-preset="walking">Walking</button>
+          <button type="button" class="dev-button" data-mock-preset="working">Working</button>
+          <button type="button" class="dev-button" data-mock-preset="mixed">Mixed</button>
+          <button id="dev-fetch-live" type="button" class="dev-button dev-button-secondary">
+            Fetch live
+          </button>
+        </div>
+      </aside>
     </div>
-    <canvas id="bevy-canvas"></canvas>
+
     <script>
       // AudioContext resume shim: browsers block audio until a user gesture.
-      // The mic button (Track B/D) will also call this before Vapi / Bevy audio.
+      // The mic button (Track D vapi-bridge) will also call this before Vapi / Bevy audio.
       let audioCtx = null;
 
       function resumeAudioContext() {
@@ -55,10 +125,11 @@
       }
 
       window.addEventListener("TrunkApplicationStarted", hideSplash);
-      // Fallback if the Trunk event is unavailable in an older trunk build.
       window.addEventListener("load", () => {
         window.setTimeout(hideSplash, 15000);
       });
     </script>
+    <script src="js/env.js"></script>
+    <script type="module" src="js/app.js"></script>
   </body>
 </html>

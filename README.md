@@ -29,10 +29,22 @@ cargo run -p game
 
 ```bash
 cd web
+npm install
+npm run build   # bundle @vapi-ai/web + inject VITE_* from .env
 trunk serve
 ```
 
 Open `http://127.0.0.1:8080`. The loading splash hides once Trunk finishes booting WASM.
+
+#### Voice (Vapi, Track D)
+
+Set `VITE_VAPI_PUBLIC_KEY` in `.env` (see `.env.example`). For local tool-call routing, run `deno task dev` in `insforge/` and forward webhooks:
+
+```bash
+vapi listen --forward-to http://127.0.0.1:8787/functions/vapi-webhook
+```
+
+See `insforge/README.md` for the full local voice workflow.
 
 Release build:
 
@@ -49,7 +61,7 @@ Output lands in `dist/`.
 |------|-------|---------|
 | `crates/protocol` | B | Frozen JSON contract (Rust) |
 | `crates/game` | A | Bevy WASM client |
-| `web/` | A/B | Trunk shell, HTML/CSS, JS bridges |
+| `web/` | A/B/D | Trunk shell, HTML/CSS, JS bridges (api-client, vapi-bridge) |
 | `insforge/` | C | Edge functions + Postgres schema |
 | `assets/` | F | CC0 glTF avatars and room props |
 

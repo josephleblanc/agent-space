@@ -11,9 +11,18 @@ stage = "pre_build"
 command = "cargo"
 command_arguments = ["check", "--package", "game", "--target", "wasm32-unknown-unknown"]
 
+[[hooks]]
+stage = "pre_build"
+command = "sh"
+command_arguments = ["-c", "cd web && npm run build 2>/dev/null || node scripts/write-env.js"]
+
 [[copy]]
 source = "../assets"
 dest = "assets"
+
+[[copy]]
+source = "js"
+dest = "js"
 
 [serve]
 addresses = ["127.0.0.1"]
