@@ -26,6 +26,10 @@ struct AgentSpeechInbound {
 #[derive(Resource, Default, Debug, Clone)]
 pub struct LatestRoomSnapshot(pub Option<RoomSnapshot>);
 
+/// Set after the first successful bridge snapshot; disables demo patrol.
+#[derive(Resource, Default, Debug, Clone, Copy)]
+pub struct BridgeSyncActive(pub bool);
+
 /// Pending agent speech lines forwarded from Vapi / agent-chat.
 #[derive(Message, Debug, Clone)]
 pub struct AgentSpeechEvent {
@@ -43,6 +47,7 @@ impl Plugin for BridgePlugin {
         INBOUND.get_or_init(|| Mutex::new(InboundBridge::default()));
 
         app.init_resource::<LatestRoomSnapshot>()
+            .init_resource::<BridgeSyncActive>()
             .add_message::<AgentSpeechEvent>()
             .configure_sets(Update, BridgeSet)
             .add_systems(Update, drain_inbound_bridge.in_set(BridgeSet));

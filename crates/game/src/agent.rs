@@ -68,21 +68,6 @@ const SPAWN_TABLE: [(&str, &str, &str, &str, f32, f32, &str); 4] = [
     ),
 ];
 
-pub struct AgentPlugin;
-
-impl Plugin for AgentPlugin {
-    fn build(&self, app: &mut App) {
-        app.add_systems(Startup, spawn_agents).add_systems(
-            Update,
-            (
-                run_demo_patrol,
-                orient_name_labels,
-                animate_capsule_fallback,
-            ),
-        );
-    }
-}
-
 pub fn spawn_agents(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,

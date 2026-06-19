@@ -1,6 +1,6 @@
 //! Asset manifest loaded from `assets/manifest.json`.
 
-use bevy::prelude::{Color, Resource};
+use bevy::prelude::{App, Color, Plugin, Resource};
 use serde::Deserialize;
 use std::collections::HashMap;
 
@@ -48,6 +48,14 @@ impl AssetManifest {
     pub fn fallback_color(&self, role: &str) -> Color {
         let hex = self.fallback.colors.get(role).map(String::as_str).unwrap_or("#888888");
         parse_hex_color(hex)
+    }
+}
+
+pub struct ManifestPlugin;
+
+impl Plugin for ManifestPlugin {
+    fn build(&self, app: &mut App) {
+        app.insert_resource(AssetManifest::load_embedded());
     }
 }
 

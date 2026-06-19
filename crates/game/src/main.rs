@@ -1,11 +1,13 @@
 mod agent;
 mod animation;
+mod bridge;
 mod camera;
 mod lighting;
 mod manifest;
 mod movement;
 mod plugin;
 mod room;
+mod room_sync;
 mod state;
 mod station;
 mod world;
@@ -13,14 +15,13 @@ mod world;
 use bevy::app::PluginGroupBuilder;
 use bevy::asset::AssetMetaCheck;
 use bevy::prelude::*;
-
 use plugin::GamePlugin;
 
 fn main() {
     #[cfg(target_arch = "wasm32")]
     {
         console_error_panic_hook::set_once();
-        console_log::init_with_level(log::Level::Warn).expect("initialize console_log");
+        console_log::init_with_level(log::Level::Info).expect("initialize console_log");
     }
 
     App::new()
@@ -30,7 +31,6 @@ fn main() {
         .run();
 }
 
-/// DefaultPlugins subset safe for WASM (WebGL2) and native dev.
 fn wasm_safe_default_plugins() -> PluginGroupBuilder {
     DefaultPlugins
         .set(WindowPlugin {

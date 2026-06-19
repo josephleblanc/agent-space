@@ -149,3 +149,18 @@ fn finish_walking(agent: &mut Agent, movement: &MovementPath) {
     }
     agent.state = AgentState::Working;
 }
+
+pub struct MovementPlugin;
+
+impl Plugin for MovementPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(
+            Update,
+            (
+                assign_paths_for_walking_agents,
+                agent_movement,
+            )
+                .chain(),
+        );
+    }
+}
