@@ -1,0 +1,86 @@
+# Track G7 — release build + optional InsForge deploy on push to main.
+# Deploy is skipped when INSFORGE_API_KEY is not configured (no secret required for CI green).
+
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.89
+          targets: wasm32-unknown-unknown
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: . -> target
+
+      - name: Install Trunk
+        run: cargo install --locked trunk --version 0.21.14
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install web dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Write build-time env (VITE_*)
+        working-directory: web
+        env:
+          VITE_INSFORGE_URL: ${{ secrets.VITE_INSFORGE_URL }}
+          VITE_VAPI_PUBLIC_KEY: ${{ secrets.VITE_VAPI_PUBLIC_KEY }}
+        run: npm run build
+
+      - name: Trunk release build
+        working-directory: web
+        env:
+          NO_COLOR: ""
+        run: trunk build --release
+
+      - name: Upload dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          retention-days: 7
+
+      - name: Deploy to InsForge (skipped without INSFORGE_API_KEY)
+        env:
+          INSFORGE_API_KEY: ${{ secrets.INSFORGE_API_KEY }}
+          VITE_INSFORGE_URL: ${{ secrets.VITE_INSFORGE_URL }}
+          VITE_VAPI_PUBLIC_KEY: ${{ secrets.VITE_VAPI_PUBLIC_KEY }}
+        run: |
+          if [ -z "$INSFORGE_API_KEY" ]; then
+            echo "INSFORGE_API_KEY secret not set — build artifact uploaded; deploy skipped."
+            echo "Add repository secrets to enable cloud deploy:"
+            echo "  INSFORGE_API_KEY, VITE_INSFORGE_URL, VITE_VAPI_PUBLIC_KEY"
+            exit 0
+          fi
+          DEPLOY_ENV=$(node -e "
+            const env = {};
+            if (process.env.VITE_INSFORGE_URL) env.VITE_INSFORGE_URL = process.env.VITE_INSFORGE_URL;
+            if (process.env.VITE_VAPI_PUBLIC_KEY) env.VITE_VAPI_PUBLIC_KEY = process.env.VITE_VAPI_PUBLIC_KEY;
+            console.log(JSON.stringify(env));
+          ")
+          npx --yes @insforge/cli@latest deployments deploy dist \
+            --env "$DEPLOY_ENV"

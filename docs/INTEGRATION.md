@@ -1,0 +1,146 @@
+# Integration test checklist (Track G3)
+
+Manual end-to-end verification: **voice → Vapi webhook → InsForge edge functions → Postgres (or mock) → room-state poll → Bevy movement**.
+
+Run through this list before a judge demo or after merging track branches.
+
+## Prerequisites
+
+- [ ] Rust 1.89+ and `wasm32-unknown-unknown` target (`rust-toolchain.toml` handles this)
+- [ ] Trunk 0.21.14: `cargo install --locked trunk --version 0.21.14`
+- [ ] Node 20+ in `web/` (`npm install`)
+- [ ] Deno 1.40+ for local edge functions
+- [ ] Optional: `VAPI_API_KEY`, `VITE_VAPI_PUBLIC_KEY`, `NEBIUS_API_KEY`, `INSFORGE_API_KEY` (see `.env.example`)
+
+Copy env template:
+
+```bash
+cp .env.example .env
+# Fill VITE_VAPI_PUBLIC_KEY, VITE_INSFORGE_URL, etc.
+```
+
+## 1. Backend smoke (offline OK)
+
+```bash
+cd insforge
+deno task check
+deno task dev
+```
+
+In another terminal:
+
+| Step | Command | Expected |
+|------|---------|----------|
+| Room snapshot | `curl -s http://127.0.0.1:8787/functions/room-state \| jq '.agents \| length'` | `4` |
+| Agent chat | `curl -s -X POST http://127.0.0.1:8787/functions/agent-chat -H 'Content-Type: application/json' -d '{"agent_id":"agent-researcher","message":"Hello"}' \| jq '.speech'` | Non-empty speech string |
+| Webhook tool | `curl -s -X POST http://127.0.0.1:8787/functions/vapi-webhook -H 'Content-Type: application/json' -d '{"message":{"type":"tool-calls","toolCallList":[{"id":"t1","function":{"name":"get_room_status","arguments":{}}}]}}' \| jq '.results[0].result.active_tasks'` | Number (0+ when DB/mock) |
+
+- [ ] All three endpoints return HTTP 200
+- [ ] `room-state` JSON matches `RoomSnapshot` shape (`agents[]`, `tasks[]`)
+- [ ] `assign_task` via webhook moves agent state in response / subsequent poll (when DB wired)
+
+## 2. Release build (Track G4)
+
+From repo root:
+
+```bash
+cd web
+npm run build
+unset NO_COLOR   # Trunk 0.21.14 rejects NO_COLOR=1 in some CI shells
+trunk build --release
+```
+
+Verify:
+
+- [ ] Build completes without errors
+- [ ] `dist/` exists at repo root (Trunk `dist = "../dist"`)
+- [ ] `dist/index.html` and hashed WASM/JS assets present
+- [ ] Total `dist/` size is reasonable for demo (~15–40 MB with glTF assets is normal)
+- [ ] Optional: `python3 -m http.server -d dist 9000` — page loads, splash clears, 3D room renders
+
+**Troubleshooting**
+
+| Issue | Fix |
+|-------|-----|
+| `invalid value '1' for '--no-color'` | `unset NO_COLOR` before running Trunk |
+| `file not found for module state` | Ensure `crates/game/src/state.rs` exists on `main` |
+| Voice disabled in UI | Set `VITE_VAPI_PUBLIC_KEY` and re-run `npm run build` |
+
+## 3. Browser shell + polling
+
+Terminal 1 — edge functions:
+
+```bash
+cd insforge && deno task dev
+```
+
+Terminal 2 — Trunk (proxy optional; direct URL also works):
+
+```bash
+export VITE_INSFORGE_URL=http://127.0.0.1:8787
+cd web && npm run build && trunk serve
+```
+
+Open `http://127.0.0.1:8080`.
+
+- [ ] Loading splash hides; Bevy canvas shows room + 4 agents
+- [ ] Agent roster sidebar lists Researcher, Coder, Planner, Social
+- [ ] Network tab: `room-state` polls every ~500 ms (200 OK)
+- [ ] Dev inject (`?dev` or localhost): keyboard `1`–`4` triggers mock walking states
+
+## 4. Voice path (requires Vapi keys)
+
+Terminal 3 — webhook tunnel (production-like):
+
+```bash
+export VAPI_API_KEY=<server-key>
+vapi listen --forward-to http://127.0.0.1:8787/functions/vapi-webhook
+```
+
+With `VITE_VAPI_PUBLIC_KEY` set and Trunk rebuilt:
+
+- [ ] **Start voice** mic button is enabled (not grayed out)
+- [ ] Click mic → browser prompts for microphone; call starts
+- [ ] Say *"What's the room status?"* → concierge calls `get_room_status`; spoken summary mentions agents
+- [ ] Say *"Hey Researcher, summarize Rust WASM performance"* → `talk_to_agent` → agent reply spoken via TTS
+- [ ] Say *"Coder, go write a hello world at the code station"* → `assign_task` → Coder state becomes walking/working in roster + 3D scene
+- [ ] End call via mic button; UI returns to idle
+
+## 5. Full chain (voice → movement)
+
+After a successful `assign_task` voice command:
+
+- [ ] `room-state` shows updated `agent.state` (`walking` → `working`) and task row
+- [ ] Bevy avatar for that agent walks toward station (path + lerp)
+- [ ] Agent enters **Working** animation at destination
+- [ ] Concurrent commands to the same agent do not corrupt state (second command waits or returns busy — see `concurrency.ts`)
+
+## 6. Cloud deploy smoke (optional, needs `INSFORGE_API_KEY`)
+
+Skip if no API key — local checklist above is sufficient for merge.
+
+```bash
+npx @insforge/cli login   # uses INSFORGE_API_KEY
+npx @insforge/cli link
+npx @insforge/cli functions deploy room-state --file insforge/functions/room-state/index.ts
+# … agent-chat, vapi-webhook (see insforge/README.md)
+
+cd web && npm run build && trunk build --release
+npx @insforge/cli deployments deploy ../dist \
+  --env '{"VITE_INSFORGE_URL":"https://YOUR_PROJECT.insforge.app","VITE_VAPI_PUBLIC_KEY":"YOUR_PUBLIC_KEY"}'
+```
+
+- [ ] Deployed URL loads WASM room
+- [ ] Room-state hits cloud edge functions (not localhost)
+- [ ] Voice works against deployed webhook URL
+
+## Sign-off
+
+| Area | Owner | Pass? | Notes |
+|------|-------|-------|-------|
+| Edge functions | Track C | | |
+| Browser poll + bridge | Track B | | |
+| Bevy movement | Track A | | |
+| Voice + tools | Track D | | |
+| Nebius replies + DB | Track E | | |
+| Release build | Track G | | |
