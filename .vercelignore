@@ -1,9 +1,12 @@
 target/
 dist/
 .deploy-dist/
+site/
 .git/
 .insforge/
 .cursor/
+node_modules/
+web/node_modules/
 .github/
 docs/
 insforge/

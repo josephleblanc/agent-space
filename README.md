@@ -57,6 +57,17 @@ trunk build --release
 
 Output lands in `dist/`. See `docs/INTEGRATION.md` for the full release-build checklist.
 
+### Cloud hosting (InsForge)
+
+Verify the release build locally; deploy uploads source and Vercel runs Trunk on InsForge (29 MB WASM exceeds OSS upload limit):
+
+```bash
+cd web && npm run build && unset NO_COLOR && trunk build --release
+npx @insforge/cli deployments deploy .
+```
+
+See `insforge/README.md` for backend setup and deploy troubleshooting.
+
 ## Judge demo script (Track G6)
 
 **Setup (~2 min before judges arrive)**

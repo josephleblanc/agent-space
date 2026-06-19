@@ -126,11 +126,13 @@ npx @insforge/cli link
 npx @insforge/cli functions deploy room-state --file insforge/functions/room-state/index.ts
 # … agent-chat, vapi-webhook (see insforge/README.md)
 
-cd web && npm run build && trunk build --release
-npx @insforge/cli deployments env set VITE_INSFORGE_URL https://YOUR_PROJECT.insforge.app
-npx @insforge/cli deployments env set VITE_VAPI_PUBLIC_KEY YOUR_PUBLIC_KEY
-npx @insforge/cli deployments deploy .
+# Build WASM + browser env locally; deploy gzip static bundle to InsForge
+cd web && npm run build && unset NO_COLOR && trunk build --release
+cd .. && bash scripts/prepare-deploy-bundle.sh
+npx @insforge/cli deployments deploy .deploy-dist
 ```
+
+Set `VITE_INSFORGE_URL` and `VITE_VAPI_PUBLIC_KEY` in `.env` (or CI secrets) **before** `npm run build` — they are baked into `web/js/env.js`.
 
 - [ ] Deployed URL loads WASM room
 - [ ] Room-state hits cloud edge functions (not localhost)

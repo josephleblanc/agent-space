@@ -192,48 +192,56 @@ For production, deploy `vapi-webhook` to InsForge and set `VITE_INSFORGE_URL` to
 
 ## Frontend hosting (Track G)
 
-InsForge hosts the WASM shell on Vercel. **Deploy the repo root (source), not `dist/`.** The CLI excludes `dist/`, `build/`, and `node_modules/` from uploads; Vercel runs the Trunk release build remotely using `vercel.json` and `scripts/vercel-build.sh`.
+**Strategy:** build WASM locally or in CI with Trunk; deploy a **gzip-compressed static bundle** (`.deploy-dist/`) to InsForge hosting. Raw WASM (~29 MB) exceeds InsForge OSS upload limits (**413**); gzip in-bundle (~9 MB) fits.
 
-### 1. Set persistent build-time env vars (once per project)
+Edge functions, DB, and secrets stay on InsForge unchanged.
 
-```bash
-npx @insforge/cli deployments env list
-npx @insforge/cli deployments env set VITE_INSFORGE_URL https://YOUR_APP_KEY.us-west.insforge.app
-npx @insforge/cli deployments env set VITE_VAPI_PUBLIC_KEY <your-vapi-public-key>
-```
-
-`web/scripts/write-env.js` reads these during the Vercel build and writes `web/js/env.js`.
-
-### 2. Verify local build (recommended before deploy)
+### 1. Build (bakes in `VITE_*` via `web/js/env.js`)
 
 ```bash
-cd web && npm ci && npm run build
-cd web && trunk build --release   # output: ../dist/
+cd web
+npm ci
+npm run build   # set VITE_INSFORGE_URL / VITE_VAPI_PUBLIC_KEY in .env or env
+unset NO_COLOR  # Trunk 0.21.14 rejects NO_COLOR=1 in some shells
+trunk build --release   # output: ../dist/
 ```
+
+### 2. Stage deploy bundle
+
+The CLI excludes `dist/` from uploads. Stage into `.deploy-dist/` (gzip WASM + SPA `vercel.json`):
+
+```bash
+bash scripts/prepare-deploy-bundle.sh
+```
+
+Optional local preview: `python3 -m http.server -d .deploy-dist 9000`
 
 ### 3. Deploy
 
 ```bash
-# From repo root — uploads source only; Vercel builds to dist/
-npx @insforge/cli deployments deploy .
+npx @insforge/cli deployments deploy .deploy-dist
 ```
 
-Check status after ~1 minute:
+Check status:
 
 ```bash
 npx @insforge/cli deployments list
 npx @insforge/cli deployments status <deployment-id>
 ```
 
-Live URL: `https://<APP_KEY>.insforge.site` (see `npx @insforge/cli current` for your app key).
+Live URL: `https://<APP_KEY>.insforge.site` (see `npx @insforge/cli current`).
+
+`scripts/deploy-vercel.json` sets `outputDirectory: "."`, SPA rewrites, and `Content-Encoding: gzip` for `*_bg.wasm`.
 
 ### Common mistakes
 
 | Mistake | Fix |
 |---------|-----|
-| `deployments deploy dist` | Use `deployments deploy .` — `dist/` is excluded from upload |
-| 413 on large WASM zip | Do not upload pre-built WASM; let Vercel build from source |
-| `No Output Directory named "public"` | `vercel.json` sets `"outputDirectory": "dist"` |
-| Missing `VITE_*` in browser | Run `deployments env set` before deploy |
+| `deployments deploy dist` | `dist/` is CLI-excluded — use `prepare-deploy-bundle.sh` then `deploy .deploy-dist` |
+| `deployments deploy .` (repo root) | Triggers remote Rust build on Vercel (OOM) — use `.deploy-dist` |
+| 413 on upload | Gzip WASM in bundle; raw `.wasm` is ~29 MB |
+| `No Output Directory named "public"` | Bundle `vercel.json` sets `"outputDirectory": "."` |
+| Missing `VITE_*` in browser | Set in `.env` or CI secrets before `npm run build` |
 
-CI (`.github/workflows/deploy.yml`) runs the same `deployments deploy .` on push to `main` when `INSFORGE_API_KEY` is configured.
+CI (`.github/workflows/deploy.yml`) runs build → `prepare-deploy-bundle.sh` → `deploy .deploy-dist` on push to `main` when `INSFORGE_API_KEY` is set.
+

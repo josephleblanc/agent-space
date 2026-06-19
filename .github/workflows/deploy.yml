@@ -1,4 +1,4 @@
-# Track G7 — release build + optional InsForge deploy on push to main.
+# Track G7 — release build in CI, gzip WASM bundle, static InsForge hosting.
 # Deploy is skipped when INSFORGE_API_KEY is not configured (no secret required for CI green).
 
 name: Deploy
@@ -57,11 +57,14 @@ jobs:
           unset NO_COLOR
           trunk build --release
 
-      - name: Upload dist artifact
+      - name: Stage static deploy bundle
+        run: bash scripts/prepare-deploy-bundle.sh
+
+      - name: Upload deploy bundle artifact
         uses: actions/upload-artifact@v4
         with:
-          name: dist
-          path: dist/
+          name: deploy-bundle
+          path: .deploy-dist/
           retention-days: 7
 
       - name: Deploy to InsForge (skipped without INSFORGE_API_KEY)
@@ -69,10 +72,7 @@ jobs:
           INSFORGE_API_KEY: ${{ secrets.INSFORGE_API_KEY }}
         run: |
           if [ -z "$INSFORGE_API_KEY" ]; then
-            echo "INSFORGE_API_KEY secret not set — build artifact uploaded; deploy skipped."
-            echo "Add INSFORGE_API_KEY to enable cloud deploy."
-            echo "Set VITE_* via: npx @insforge/cli deployments env set (persists on platform)."
+            echo "INSFORGE_API_KEY secret not set — deploy bundle uploaded; deploy skipped."
             exit 0
           fi
-          # Deploy repo root (source). CLI excludes dist/; Vercel builds via vercel.json + scripts/vercel-build.sh.
-          npx --yes @insforge/cli@latest deployments deploy .
+          npx --yes @insforge/cli@latest deployments deploy .deploy-dist
