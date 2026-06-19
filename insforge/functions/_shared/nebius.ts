@@ -5,7 +5,7 @@
 import type { AgentSnapshot, AgentTurn, TaskAction } from "./protocol.ts";
 
 export const NEBIUS_BASE_URL = "https://api.tokenfactory.nebius.com/v1/";
-export const NEBIUS_FAST_MODEL = "meta-llama/Meta-Llama-3.1-70B-Instruct";
+export const NEBIUS_FAST_MODEL = "meta-llama/Llama-3.3-70B-Instruct";
 
 const JSON_OUTPUT_INSTRUCTION = `
 Respond with a single JSON object only — no markdown fences, no commentary.
