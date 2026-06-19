@@ -7,6 +7,12 @@
   "outputDirectory": ".",
   "headers": [
     {
+      "source": "/js/env.js",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache" }
+      ]
+    },
+    {
       "source": "/(.*)_bg.wasm",
       "headers": [
         { "key": "Content-Type", "value": "application/wasm" },
