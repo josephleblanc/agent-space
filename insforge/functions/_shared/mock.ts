@@ -3,7 +3,7 @@
  * Mirrors insforge/seed.sql so room-state returns a valid RoomSnapshot offline.
  */
 
-import type { RoomSnapshot } from "./protocol.ts";
+import type { AgentSnapshot, AgentState, RoomSnapshot, TaskSnapshot } from "./protocol.ts";
 
 export const MOCK_ROOM_SNAPSHOT: RoomSnapshot = {
   agents: [
@@ -50,3 +50,53 @@ export const MOCK_ROOM_SNAPSHOT: RoomSnapshot = {
   ],
   tasks: [],
 };
+
+/** Mutable offline room state — updated by agent-chat / vapi-webhook when no DB. */
+let mockSnapshot: RoomSnapshot = structuredClone(MOCK_ROOM_SNAPSHOT);
+
+export function getMockRoomSnapshot(): RoomSnapshot {
+  return mockSnapshot;
+}
+
+export function resetMockRoomSnapshot(): void {
+  mockSnapshot = structuredClone(MOCK_ROOM_SNAPSHOT);
+}
+
+export function updateMockAgent(
+  agentId: string,
+  updates: Partial<Pick<AgentSnapshot, "state" | "station_id">>,
+  allowedFromStates?: AgentState[],
+): boolean {
+  const agent = mockSnapshot.agents.find((a) => a.id === agentId);
+  if (!agent) return false;
+
+  if (allowedFromStates && !allowedFromStates.includes(agent.state)) {
+    return false;
+  }
+
+  if (updates.state !== undefined) agent.state = updates.state;
+  if (updates.station_id !== undefined) {
+    agent.station_id = updates.station_id;
+  }
+  return true;
+}
+
+export function addMockTask(
+  agentId: string,
+  type: string,
+  station: string,
+  status: TaskSnapshot["status"] = "active",
+): TaskSnapshot {
+  const task: TaskSnapshot = {
+    id: `task-mock-${crypto.randomUUID()}`,
+    agent_id: agentId,
+    type,
+    station,
+    status,
+  };
+  mockSnapshot.tasks = [
+    task,
+    ...mockSnapshot.tasks.filter((t) => t.agent_id !== agentId || t.status !== "active"),
+  ];
+  return task;
+}

@@ -6,8 +6,20 @@
  */
 
 import { createClient, type InsForgeClient } from "npm:@insforge/sdk@latest";
-import type { AgentSnapshot, RoomSnapshot, TaskSnapshot } from "./protocol.ts";
-import { MOCK_ROOM_SNAPSHOT } from "./mock.ts";
+import type {
+  AgentSnapshot,
+  AgentState,
+  AgentTurn,
+  RoomSnapshot,
+  TaskAction,
+  TaskSnapshot,
+} from "./protocol.ts";
+import {
+  addMockTask,
+  getMockRoomSnapshot,
+  updateMockAgent,
+} from "./mock.ts";
+import { AgentBusyError } from "./concurrency.ts";
 
 export function getDbClient(): InsForgeClient | null {
   const baseUrl = Deno.env.get("INSFORGE_BASE_URL") ??
@@ -106,10 +118,10 @@ export async function fetchRoomSnapshot(): Promise<RoomSnapshot | null> {
   };
 }
 
-/** DB when configured, otherwise the canned seed snapshot for local/offline dev. */
+/** DB when configured, otherwise the mutable mock snapshot for local/offline dev. */
 export async function getRoomSnapshot(): Promise<RoomSnapshot> {
   const fromDb = await fetchRoomSnapshot();
-  return fromDb ?? MOCK_ROOM_SNAPSHOT;
+  return fromDb ?? getMockRoomSnapshot();
 }
 
 export async function getAgentById(
@@ -139,4 +151,119 @@ export async function insertMessage(
   if (error) {
     console.error("insertMessage failed", error);
   }
+}
+
+function newTaskId(): string {
+  return `task-${crypto.randomUUID()}`;
+}
+
+/** Optimistic agent state transition with optional allowed-from guard (C10/E4). */
+export async function updateAgentState(
+  agentId: string,
+  updates: { state: AgentState; station_id?: string | null },
+  allowedFromStates?: AgentState[],
+): Promise<boolean> {
+  const client = getDbClient();
+  if (!client) {
+    return updateMockAgent(agentId, updates, allowedFromStates);
+  }
+
+  let query = client.database
+    .from("agents")
+    .update({
+      state: updates.state,
+      ...(updates.station_id !== undefined
+        ? { station_id: updates.station_id }
+        : {}),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", agentId);
+
+  if (allowedFromStates?.length) {
+    query = query.in("state", allowedFromStates);
+  }
+
+  const { data, error } = await query.select("id").maybeSingle();
+
+  if (error) {
+    console.error("updateAgentState failed", error);
+    return false;
+  }
+
+  return data !== null;
+}
+
+/** Insert a task row (or mock task) and return the snapshot. */
+export async function insertTask(
+  agentId: string,
+  type: string,
+  station: string,
+  status: TaskSnapshot["status"] = "active",
+): Promise<TaskSnapshot | null> {
+  const client = getDbClient();
+  const taskId = newTaskId();
+
+  if (!client) {
+    return addMockTask(agentId, type, station, status);
+  }
+
+  const { data, error } = await client.database
+    .from("tasks")
+    .insert({
+      id: taskId,
+      agent_id: agentId,
+      type,
+      station,
+      status,
+    })
+    .select("*")
+    .maybeSingle();
+
+  if (error || !data) {
+    console.error("insertTask failed", error);
+    return null;
+  }
+
+  return mapTask(data as TaskRow);
+}
+
+/** Assign a task and move the agent toward the target station (E4). */
+export async function assignTaskToAgent(
+  agentId: string,
+  task: TaskAction,
+): Promise<{ task: TaskSnapshot; stateUpdated: boolean }> {
+  const taskRow = await insertTask(agentId, task.type, task.station, "active");
+  if (!taskRow) {
+    throw new Error(`Failed to create task for agent ${agentId}`);
+  }
+
+  const stateUpdated = await updateAgentState(
+    agentId,
+    { state: "walking", station_id: task.station },
+    ["idle", "working", "talking"],
+  );
+
+  if (!stateUpdated) {
+    throw new AgentBusyError(agentId);
+  }
+
+  return { task: taskRow, stateUpdated };
+}
+
+/** Apply structured agent turn — persist optional task + state transitions (E4). */
+export async function applyAgentTurn(
+  agentId: string,
+  turn: AgentTurn,
+): Promise<void> {
+  if (turn.task) {
+    await assignTaskToAgent(agentId, turn.task);
+    return;
+  }
+
+  // Brief talking state when replying without a movement task.
+  await updateAgentState(
+    agentId,
+    { state: "talking" },
+    ["idle", "working"],
+  );
 }

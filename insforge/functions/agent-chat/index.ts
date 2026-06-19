@@ -1,11 +1,16 @@
 /**
  * POST /functions/agent-chat
- * Skeleton agent turn handler — Nebius LLM wiring lands in Track E.
+ * Agent turn handler — Nebius LLM + structured output + DB state (Track E).
  */
 
 import type { AgentTurn } from "../_shared/protocol.ts";
+import { resolveBackend } from "../_shared/backends.ts";
 import { handlePreflight, errorResponse, jsonResponse } from "../_shared/cors.ts";
-import { getAgentById, insertMessage } from "../_shared/db.ts";
+import {
+  applyAgentTurn,
+  getAgentById,
+  insertMessage,
+} from "../_shared/db.ts";
 import {
   AgentBusyError,
   withAgentLock,
@@ -58,12 +63,14 @@ export default async function handler(req: Request): Promise<Response> {
     const turn = await withAgentLock(payload.agent_id, async (): Promise<AgentTurn> => {
       await insertMessage(payload!.agent_id, "user", payload!.message);
 
-      // Track E: call Nebius with per-agent system prompt + structured JSON output.
-      const reply: AgentTurn = {
-        speech: `[${agent.name}] I heard you: "${payload!.message}". LLM wiring comes in Track E.`,
-        task: null,
-      };
+      const backend = resolveBackend(agent);
+      const reply = await backend.generateTurn({
+        agent,
+        userMessage: payload!.message,
+        fromUser: payload!.from_user,
+      });
 
+      await applyAgentTurn(payload!.agent_id, reply);
       await insertMessage(payload!.agent_id, "assistant", reply.speech);
       return reply;
     });
