@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Agent Space</title>
+    <link data-trunk rel="css" href="css/style.css" />
+    <link
+      data-trunk
+      rel="rust"
+      data-bin="game"
+      href="../crates/game/Cargo.toml"
+      data-wasm-opt="s"
+    />
+  </head>
+  <body>
+    <div id="splash" aria-live="polite">
+      <div class="splash-content">
+        <h1>Agent Space</h1>
+        <p>Loading hangout room…</p>
+        <div class="spinner" role="status" aria-label="Loading"></div>
+      </div>
+    </div>
+    <canvas id="bevy-canvas"></canvas>
+    <script>
+      // AudioContext resume shim: browsers block audio until a user gesture.
+      // The mic button (Track B/D) will also call this before Vapi / Bevy audio.
+      let audioCtx = null;
+
+      function resumeAudioContext() {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+
+        if (!audioCtx) {
+          audioCtx = new AudioCtx();
+        }
+        if (audioCtx.state === "suspended") {
+          audioCtx.resume();
+        }
+      }
+
+      function bindAudioResume() {
+        document.addEventListener("click", resumeAudioContext, { once: true });
+        document.addEventListener("keydown", resumeAudioContext, { once: true });
+      }
+
+      bindAudioResume();
+      window.resumeAudioContext = resumeAudioContext;
+
+      function hideSplash() {
+        const splash = document.getElementById("splash");
+        if (splash) {
+          splash.classList.add("hidden");
+        }
+      }
+
+      window.addEventListener("TrunkApplicationStarted", hideSplash);
+      // Fallback if the Trunk event is unavailable in an older trunk build.
+      window.addEventListener("load", () => {
+        window.setTimeout(hideSplash, 15000);
+      });
+    </script>
+  </body>
+</html>

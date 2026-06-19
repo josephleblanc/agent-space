@@ -1,0 +1,21 @@
+[build]
+dist = "../dist"
+public_url = "/"
+filehash = true
+
+[watch]
+watch = ["../crates/game/src", "../crates/protocol/src"]
+
+[[hooks]]
+stage = "pre_build"
+command = "cargo"
+command_arguments = ["check", "--package", "game", "--target", "wasm32-unknown-unknown"]
+
+[[copy]]
+source = "../assets"
+dest = "assets"
+
+[serve]
+addresses = ["127.0.0.1"]
+port = 8080
+open = false
