@@ -25,11 +25,76 @@ pub enum TaskStatus {
     Failed,
 }
 
+/// Asset category for stretch goal on-demand generation (Track H).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AssetKind {
+    Prop,
+    Clothing,
+    Furniture,
+}
+
+/// Lifecycle of a generated asset row / spawn-queue entry.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AssetStatus {
+    Generating,
+    Ready,
+    Failed,
+}
+
+/// Primitive mesh shape for MVP textured-props (before full glTF pipeline).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PrimitiveShape {
+    Cuboid,
+    Sphere,
+    Capsule,
+}
+
+/// How Bevy should render a spawn-queue asset (primitive MVP vs future glTF).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "mode", rename_all = "snake_case")]
+pub enum AssetRenderSpec {
+    Primitive {
+        shape: PrimitiveShape,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        texture_url: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        color: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        width: Option<f32>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        height: Option<f32>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        depth: Option<f32>,
+    },
+    Gltf {
+        url: String,
+    },
+}
+
+/// Pending world prop/clothing spawn delivered via `room-state` polling (Track H).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SpawnQueueEntry {
+    pub asset_id: String,
+    pub kind: AssetKind,
+    pub description: String,
+    pub status: AssetStatus,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub requested_by: Option<String>,
+    pub render: AssetRenderSpec,
+    pub x: f32,
+    pub y: f32,
+}
+
 /// Full room view returned by `room-state` and consumed by Bevy + `api-client.js`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RoomSnapshot {
     pub agents: Vec<AgentSnapshot>,
     pub tasks: Vec<TaskSnapshot>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub spawn_queue: Vec<SpawnQueueEntry>,
 }
 
 /// One agent's pose and state inside the hangout room.
@@ -78,6 +143,7 @@ mod tests {
 
     fn sample_room() -> RoomSnapshot {
         RoomSnapshot {
+            spawn_queue: vec![],
             agents: vec![AgentSnapshot {
                 id: "agent-researcher".into(),
                 name: "Researcher".into(),
@@ -143,5 +209,36 @@ mod tests {
         let parsed: AgentTurn = serde_json::from_str(json).unwrap();
         assert_eq!(parsed.speech, "Hello!");
         assert!(parsed.task.is_none());
+    }
+
+    #[test]
+    fn spawn_queue_entry_round_trip() {
+        let entry = SpawnQueueEntry {
+            asset_id: "asset-1".into(),
+            kind: AssetKind::Prop,
+            description: "whiteboard".into(),
+            status: AssetStatus::Ready,
+            requested_by: Some("agent-researcher".into()),
+            render: AssetRenderSpec::Primitive {
+                shape: PrimitiveShape::Cuboid,
+                texture_url: None,
+                color: Some("#ffffff".into()),
+                width: Some(1.2),
+                height: Some(0.9),
+                depth: Some(0.05),
+            },
+            x: 0.0,
+            y: 0.0,
+        };
+        let json = serde_json::to_string(&entry).unwrap();
+        let parsed: SpawnQueueEntry = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed, entry);
+    }
+
+    #[test]
+    fn room_snapshot_backward_compat_without_spawn_queue() {
+        let json = r#"{"agents":[],"tasks":[]}"#;
+        let parsed: RoomSnapshot = serde_json::from_str(json).unwrap();
+        assert!(parsed.spawn_queue.is_empty());
     }
 }

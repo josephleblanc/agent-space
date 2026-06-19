@@ -3,7 +3,16 @@
  * Mirrors insforge/seed.sql so room-state returns a valid RoomSnapshot offline.
  */
 
-import type { AgentSnapshot, AgentState, RoomSnapshot, TaskSnapshot } from "./protocol.ts";
+import type {
+  AgentSnapshot,
+  AgentState,
+  AssetKind,
+  AssetRenderSpec,
+  AssetStatus,
+  RoomSnapshot,
+  SpawnQueueEntry,
+  TaskSnapshot,
+} from "./protocol.ts";
 
 export const MOCK_ROOM_SNAPSHOT: RoomSnapshot = {
   agents: [
@@ -49,6 +58,7 @@ export const MOCK_ROOM_SNAPSHOT: RoomSnapshot = {
     },
   ],
   tasks: [],
+  spawn_queue: [],
 };
 
 /** Mutable offline room state — updated by agent-chat / vapi-webhook when no DB. */
@@ -99,4 +109,13 @@ export function addMockTask(
     ...mockSnapshot.tasks.filter((t) => t.agent_id !== agentId || t.status !== "active"),
   ];
   return task;
+}
+
+export function addMockSpawnEntry(entry: SpawnQueueEntry): SpawnQueueEntry {
+  mockSnapshot.spawn_queue = [...(mockSnapshot.spawn_queue ?? []), entry];
+  return entry;
+}
+
+export function getMockSpawnQueue(): SpawnQueueEntry[] {
+  return mockSnapshot.spawn_queue ?? [];
 }

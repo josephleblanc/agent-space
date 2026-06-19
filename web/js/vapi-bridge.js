@@ -1,18 +1,37 @@
 /**
- * Vapi voice bridge (Track D1/D2/D3/D4).
+ * Vapi voice bridge (Track D1/D2/D3/D4/D5).
  * Ephemeral inline assistant via vapi.start({...}); server tools hit InsForge vapi-webhook.
+ *
+ * Test paths (see docs/INTEGRATION.md §4–5):
+ * - talk_to_agent: voice → webhook → tool-calls-result → sayAgentSpeech() → vapi.say + WASM Talking
+ * - assign_task: tool-calls-result → refreshRoomStateAfterVoiceTool() → poll/Bevy walking
+ * - Dev console: sayAgentSpeech("agent-researcher", "Hello from dev") during an active call
  */
 
 import Vapi from "./vapi-sdk.js";
-import { getInsforgeBaseUrl } from "./api-client.js";
+import {
+  getInsforgeBaseUrl,
+  refreshRoomStateAfterVoiceTool,
+} from "./api-client.js";
+import { notifyAgentSpeech } from "./game-bridge.js";
 
 const VAPI_EVENT = "agent-space:vapi";
+
+/** Tool names whose webhook results mutate room snapshot (Bevy sync via api-client). */
+const ROOM_STATE_VOICE_TOOLS = new Set([
+  "talk_to_agent",
+  "assign_task",
+  "request_custom_item",
+]);
 
 /** @type {InstanceType<typeof Vapi>|null} */
 let vapiInstance = null;
 
 /** @type {boolean} */
 let callActive = false;
+
+/** @type {Map<string, { name: string, args: Record<string, unknown> }>} */
+const pendingToolCalls = new Map();
 
 /**
  * Resolve Vapi public key from build-time or runtime config.
@@ -78,6 +97,7 @@ export function buildAssistantConfig(webhookUrl) {
 Use talk_to_agent when the user wants to converse with a specific agent.
 Use assign_task to send an agent to work at a station (research, code, meet, lounge).
 Use get_room_status to check who is in the room and what tasks are active.
+Use request_custom_item when the user asks to add furniture, props, or clothing to the room.
 Keep responses concise and conversational.`,
         },
       ],
@@ -144,6 +164,35 @@ Keep responses concise and conversational.`,
             },
           },
         },
+        {
+          type: "function",
+          function: {
+            name: "request_custom_item",
+            description:
+              "Generate and spawn a custom prop, furniture item, or clothing in the 3D room from a natural-language description",
+            parameters: {
+              type: "object",
+              properties: {
+                description: {
+                  type: "string",
+                  description:
+                    "What to create, e.g. whiteboard by the meeting table, plant by the window, red hoodie for the coder",
+                },
+                requested_by_agent: {
+                  type: "string",
+                  description:
+                    "Optional agent id requesting the item: agent-researcher, agent-coder, agent-planner, or agent-social",
+                },
+                kind: {
+                  type: "string",
+                  description: "Asset category: prop, clothing, or furniture",
+                  enum: ["prop", "clothing", "furniture"],
+                },
+              },
+              required: ["description"],
+            },
+          },
+        },
       ],
     },
     voice: {
@@ -201,6 +250,7 @@ export function initVapiBridge() {
 
   vapiInstance.on("call-end", () => {
     callActive = false;
+    pendingToolCalls.clear();
     updateMicUi(false);
     window.dispatchEvent(
       new CustomEvent(VAPI_EVENT, { detail: { type: "call-end" } }),
@@ -230,6 +280,13 @@ export function initVapiBridge() {
     if (message?.type === "transcript" && message.transcriptType === "final") {
       console.debug("[vapi-bridge] transcript:", message.transcript);
     }
+
+    if (message?.type === "tool-calls") {
+      rememberToolCalls(message);
+    } else if (message?.type === "tool-calls-result") {
+      handleToolCallResult(message);
+    }
+
     window.dispatchEvent(
       new CustomEvent(VAPI_EVENT, { detail: { type: "message", message } }),
     );
@@ -267,16 +324,136 @@ export function stopVoiceCall() {
 }
 
 /**
- * Speak agent reply via Vapi TTS (Track D5 hook for agent-chat responses).
+ * Parse tool-call arguments from Vapi client messages.
+ * @param {unknown} raw
+ * @returns {Record<string, unknown>}
+ */
+function parseToolArguments(raw) {
+  if (!raw) return {};
+  if (typeof raw === "object") return /** @type {Record<string, unknown>} */ (raw);
+  if (typeof raw !== "string") return {};
+  try {
+    return /** @type {Record<string, unknown>} */ (JSON.parse(raw));
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Remember outbound tool calls so tool-calls-result can recover agent_id.
+ * @param {{ toolCallList?: Array<{ id?: string, function?: { name?: string, arguments?: unknown } }> }} message
+ */
+function rememberToolCalls(message) {
+  for (const call of message.toolCallList ?? []) {
+    const id = call?.id;
+    const name = call?.function?.name;
+    if (!id || !name) continue;
+    pendingToolCalls.set(id, {
+      name,
+      args: parseToolArguments(call.function?.arguments),
+    });
+  }
+}
+
+/**
+ * Parse webhook tool result payload (string JSON or object).
+ * @param {unknown} raw
+ * @returns {Record<string, unknown>|null}
+ */
+function parseToolResult(raw) {
+  if (!raw) return null;
+  if (typeof raw === "object") {
+    return /** @type {Record<string, unknown>} */ (raw);
+  }
+  if (typeof raw !== "string") return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return typeof parsed === "object" && parsed ? /** @type {Record<string, unknown>} */ (parsed) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Resolve agent id from tool-calls-result + pending tool-call args.
+ * @param {string} toolCallId
+ * @param {Record<string, unknown>|null} result
+ * @returns {string}
+ */
+function resolveAgentId(toolCallId, result) {
+  const fromResult = String(result?.agent_id ?? result?.agentId ?? "").trim();
+  if (fromResult) return fromResult;
+
+  const pending = pendingToolCalls.get(toolCallId);
+  const fromArgs = String(
+    pending?.args?.agent_id ?? pending?.args?.agentId ?? "",
+  ).trim();
+  return fromArgs;
+}
+
+/**
+ * Handle Vapi tool-calls-result: speak agent replies + sync Bevy (Track D5).
+ * @param {{ toolCallResult?: Record<string, unknown> }} message
+ */
+function handleToolCallResult(message) {
+  const toolCallResult = message.toolCallResult;
+  if (!toolCallResult || typeof toolCallResult !== "object") return;
+
+  const name = String(toolCallResult.name ?? "");
+  const toolCallId = String(toolCallResult.toolCallId ?? "");
+  const result = parseToolResult(toolCallResult.result);
+
+  if (toolCallId) {
+    pendingToolCalls.delete(toolCallId);
+  }
+
+  if (name === "talk_to_agent") {
+    const speech = String(result?.speech ?? "").trim();
+    const agentId = resolveAgentId(toolCallId, result);
+    if (speech && agentId) {
+      sayAgentSpeech(agentId, speech);
+    } else if (speech) {
+      console.warn("[vapi-bridge] talk_to_agent speech without agent_id");
+      sayAgentSpeech("", speech);
+    }
+  } else if (name === "request_custom_item") {
+    const speech = String(result?.speech ?? "").trim();
+    const agentId = resolveAgentId(toolCallId, result);
+    if (speech) {
+      sayAgentSpeech(agentId || "", speech);
+    }
+  }
+
+  if (ROOM_STATE_VOICE_TOOLS.has(name)) {
+    refreshRoomStateAfterVoiceTool().catch((error) => {
+      console.warn("[vapi-bridge] room-state refresh after voice tool failed:", error);
+    });
+  }
+}
+
+/**
+ * Speak agent reply via Vapi TTS and sync Bevy Talking state (Track D5).
+ * @param {string} agentId
  * @param {string} text
  * @param {boolean} [endCallAfterSpoken]
  */
-export function sayAgentSpeech(text, endCallAfterSpoken = false) {
-  if (!vapiInstance || !callActive) {
-    console.warn("[vapi-bridge] say() skipped — no active call");
+export function sayAgentSpeech(agentId, text, endCallAfterSpoken = false) {
+  const speech = String(text ?? "").trim();
+  if (!speech) {
+    console.warn("[vapi-bridge] say() skipped — empty speech");
     return;
   }
-  vapiInstance.say(text, endCallAfterSpoken);
+
+  if (agentId) {
+    notifyAgentSpeech(agentId, speech);
+  }
+
+  if (!vapiInstance || !callActive) {
+    console.warn("[vapi-bridge] say() skipped — no active call (Bevy sync still applied)");
+    return;
+  }
+
+  vapiInstance.say(speech, endCallAfterSpoken);
 }
 
 /**

@@ -10,13 +10,20 @@ import type {
   AgentSnapshot,
   AgentState,
   AgentTurn,
+  AssetKind,
+  AssetRenderSpec,
+  AssetStatus,
+  PrimitiveShape,
   RoomSnapshot,
+  SpawnQueueEntry,
   TaskAction,
   TaskSnapshot,
 } from "./protocol.ts";
 import {
+  addMockSpawnEntry,
   addMockTask,
   getMockRoomSnapshot,
+  getMockSpawnQueue,
   updateMockAgent,
 } from "./mock.ts";
 import { AgentBusyError } from "./concurrency.ts";
@@ -58,6 +65,16 @@ interface TaskRow {
   agent_id: string;
   type: string;
   station: string;
+  status: string;
+}
+
+interface AssetRow {
+  id: string;
+  kind: string;
+  description: string;
+  storage_url: string | null;
+  gltf_path: string | null;
+  requested_by: string | null;
   status: string;
 }
 
@@ -115,13 +132,20 @@ export async function fetchRoomSnapshot(): Promise<RoomSnapshot | null> {
   return {
     agents: (agentsResult.data as AgentRow[]).map(mapAgent),
     tasks: ((tasksResult.data ?? []) as TaskRow[]).map(mapTask),
+    spawn_queue: await fetchSpawnQueue(),
   };
 }
 
 /** DB when configured, otherwise the mutable mock snapshot for local/offline dev. */
 export async function getRoomSnapshot(): Promise<RoomSnapshot> {
   const fromDb = await fetchRoomSnapshot();
-  return fromDb ?? getMockRoomSnapshot();
+  if (fromDb) return fromDb;
+
+  const mock = getMockRoomSnapshot();
+  return {
+    ...mock,
+    spawn_queue: getMockSpawnQueue(),
+  };
 }
 
 export async function getAgentById(
@@ -266,4 +290,144 @@ export async function applyAgentTurn(
     { state: "talking" },
     ["idle", "working"],
   );
+}
+
+const VALID_ASSET_KINDS = new Set<AssetKind>(["prop", "clothing", "furniture"]);
+const VALID_ASSET_STATUSES = new Set<AssetStatus>([
+  "generating",
+  "ready",
+  "failed",
+]);
+const VALID_SHAPES = new Set<PrimitiveShape>(["cuboid", "sphere", "capsule"]);
+
+function encodeRenderSpec(render: AssetRenderSpec): string {
+  return JSON.stringify(render);
+}
+
+function decodeRenderSpec(raw: string | null): AssetRenderSpec | null {
+  if (!raw?.trim()) return null;
+  try {
+    const parsed = JSON.parse(raw) as AssetRenderSpec;
+    if (parsed?.mode === "primitive" || parsed?.mode === "gltf") {
+      return parsed;
+    }
+  } catch {
+    // Legacy placeholder paths like primitive:cuboid
+    if (raw.startsWith("primitive:")) {
+      const shapeRaw = raw.slice("primitive:".length) as PrimitiveShape;
+      const shape: PrimitiveShape = VALID_SHAPES.has(shapeRaw)
+        ? shapeRaw
+        : "cuboid";
+      return { mode: "primitive", shape };
+    }
+  }
+  return null;
+}
+
+function mapAssetToSpawnEntry(
+  row: AssetRow,
+  render: AssetRenderSpec,
+  position?: { x: number; y: number },
+): SpawnQueueEntry {
+  return {
+    asset_id: row.id,
+    kind: row.kind as AssetKind,
+    description: row.description,
+    status: row.status as AssetStatus,
+    requested_by: row.requested_by,
+    render,
+    x: position?.x ?? 0,
+    y: position?.y ?? 0,
+  };
+}
+
+/** Ready assets awaiting Bevy spawn (Track H foundation). */
+export async function fetchSpawnQueue(): Promise<SpawnQueueEntry[]> {
+  const client = getDbClient();
+  if (!client) {
+    return getMockSpawnQueue();
+  }
+
+  const { data, error } = await client.database
+    .from("assets")
+    .select("*")
+    .eq("status", "ready")
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    console.error("fetchSpawnQueue failed", error);
+    return [];
+  }
+
+  return ((data ?? []) as AssetRow[])
+    .map((row) => {
+      const render = decodeRenderSpec(row.gltf_path) ??
+        ({
+          mode: "primitive",
+          shape: "cuboid",
+          color: "#cccccc",
+        } as AssetRenderSpec);
+      return mapAssetToSpawnEntry(row, render);
+    });
+}
+
+export interface InsertAssetInput {
+  kind: AssetKind;
+  description: string;
+  requested_by?: string | null;
+  status?: AssetStatus;
+  render: AssetRenderSpec;
+  storage_url?: string | null;
+  x?: number;
+  y?: number;
+}
+
+/** Persist a generated asset and enqueue it for room-state consumers. */
+export async function insertAssetRecord(
+  input: InsertAssetInput,
+): Promise<SpawnQueueEntry> {
+  const assetId = crypto.randomUUID();
+  const status = input.status ?? "ready";
+  const entry = mapAssetToSpawnEntry(
+    {
+      id: assetId,
+      kind: input.kind,
+      description: input.description,
+      storage_url: input.storage_url ?? null,
+      gltf_path: encodeRenderSpec(input.render),
+      requested_by: input.requested_by ?? null,
+      status,
+    },
+    input.render,
+    { x: input.x ?? 0, y: input.y ?? 0 },
+  );
+
+  const client = getDbClient();
+  if (!client) {
+    return addMockSpawnEntry(entry);
+  }
+
+  if (!VALID_ASSET_KINDS.has(input.kind)) {
+    throw new Error(`Invalid asset kind: ${input.kind}`);
+  }
+  if (!VALID_ASSET_STATUSES.has(status)) {
+    throw new Error(`Invalid asset status: ${status}`);
+  }
+
+  const { error } = await client.database.from("assets").insert({
+    id: assetId,
+    kind: input.kind,
+    description: input.description,
+    storage_url: input.storage_url ?? null,
+    gltf_path: encodeRenderSpec(input.render),
+    requested_by: input.requested_by ?? null,
+    status,
+  });
+
+  if (error) {
+    console.error("insertAssetRecord failed", error);
+    throw new Error("Failed to insert asset record");
+  }
+
+  return entry;
 }

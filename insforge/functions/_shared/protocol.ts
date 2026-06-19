@@ -7,6 +7,38 @@ export type AgentState = "idle" | "walking" | "working" | "talking";
 
 export type TaskStatus = "pending" | "active" | "completed" | "failed";
 
+export type AssetKind = "prop" | "clothing" | "furniture";
+
+export type AssetStatus = "generating" | "ready" | "failed";
+
+export type PrimitiveShape = "cuboid" | "sphere" | "capsule";
+
+export type AssetRenderSpec =
+  | {
+      mode: "primitive";
+      shape: PrimitiveShape;
+      texture_url?: string | null;
+      color?: string | null;
+      width?: number | null;
+      height?: number | null;
+      depth?: number | null;
+    }
+  | {
+      mode: "gltf";
+      url: string;
+    };
+
+export interface SpawnQueueEntry {
+  asset_id: string;
+  kind: AssetKind;
+  description: string;
+  status: AssetStatus;
+  requested_by?: string | null;
+  render: AssetRenderSpec;
+  x: number;
+  y: number;
+}
+
 export interface TaskAction {
   type: string;
   station: string;
@@ -39,4 +71,5 @@ export interface TaskSnapshot {
 export interface RoomSnapshot {
   agents: AgentSnapshot[];
   tasks: TaskSnapshot[];
+  spawn_queue?: SpawnQueueEntry[];
 }

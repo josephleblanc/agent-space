@@ -2,7 +2,7 @@
  * POST /functions/vapi-webhook
  * Vapi server webhook with full tool handlers (Track E5).
  *
- * Tools: talk_to_agent, assign_task, get_room_status
+ * Tools: talk_to_agent, assign_task, get_room_status, request_custom_item
  */
 
 import type { AgentTurn, TaskAction } from "../_shared/protocol.ts";
@@ -122,7 +122,9 @@ async function handleTalkToAgent(
     throw new Error(`agent-chat failed (${response.status}): ${text}`);
   }
 
-  return response.json() as Promise<AgentTurn>;
+  const turn = (await response.json()) as AgentTurn;
+  // Include agent_id in tool result so the browser can drive Bevy Talking (Track D5).
+  return { ...turn, agent_id: agentId };
 }
 
 async function handleAssignTask(
@@ -163,6 +165,51 @@ async function handleAssignTask(
   });
 }
 
+async function handleRequestCustomItem(
+  args: Record<string, unknown>,
+  req: Request,
+): Promise<unknown> {
+  const description = String(args.description ?? "").trim();
+  if (!description) {
+    throw new Error("request_custom_item requires description");
+  }
+
+  const requestedBy = String(
+    args.requested_by_agent ?? args.requested_by ?? "",
+  ).trim() || undefined;
+
+  const origin = new URL(req.url).origin;
+  const response = await fetch(`${origin}/functions/generate-asset`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      description,
+      requested_by: requestedBy,
+      kind: typeof args.kind === "string" ? args.kind : undefined,
+    }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`generate-asset failed (${response.status}): ${text}`);
+  }
+
+  const body = await response.json() as {
+    ok?: boolean;
+    asset_id?: string;
+    speech?: string;
+    spawn?: unknown;
+  };
+
+  return {
+    ok: true,
+    asset_id: body.asset_id,
+    speech: body.speech ??
+      `Queued a custom item: ${description}. It will appear in the room shortly.`,
+    spawn: body.spawn,
+  };
+}
+
 async function routeToolCall(
   name: string,
   args: Record<string, unknown>,
@@ -177,6 +224,9 @@ async function routeToolCall(
 
     case "assign_task":
       return handleAssignTask(args);
+
+    case "request_custom_item":
+      return handleRequestCustomItem(args, req);
 
     default:
       throw new Error(`Unknown tool: ${name}`);
