@@ -8,12 +8,30 @@
  * - Dev console: sayAgentSpeech("agent-researcher", "Hello from dev") during an active call
  */
 
-import Vapi from "./vapi-sdk.js";
+import VapiModule from "./vapi-sdk.js";
 import {
   getInsforgeBaseUrl,
   refreshRoomStateAfterVoiceTool,
 } from "./api-client.js";
 import { notifyAgentSpeech } from "./game-bridge.js";
+
+/** @type {new (key: string) => InstanceType<any>} */
+const Vapi = resolveVapiConstructor(VapiModule);
+
+/**
+ * esbuild CJS interop can nest the constructor at `.default.default`.
+ * @param {unknown} mod
+ */
+function resolveVapiConstructor(mod) {
+  const candidate =
+    /** @type {any} */ (mod)?.default?.default ??
+    /** @type {any} */ (mod)?.default ??
+    mod;
+  if (typeof candidate !== "function") {
+    throw new TypeError("[vapi-bridge] Vapi SDK export is not a constructor");
+  }
+  return candidate;
+}
 
 const VAPI_EVENT = "agent-space:vapi";
 

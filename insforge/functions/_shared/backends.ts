@@ -75,7 +75,9 @@ function stubBackend(id: string, label: string): AgentBackend {
     async generateTurn(input: AgentChatInput): Promise<AgentTurn> {
       return {
         speech:
-          `[${input.agent.name}] The ${label} backend is not wired yet. I heard: "${input.userMessage}".`,
+          `[${input.agent.name}] ${label} is not configured for this demo. ` +
+          `Set AGENT_BACKEND=nebius (default) or wire ${label} in backends.ts. ` +
+          `I heard: "${input.userMessage}".`,
         task: null,
       };
     },

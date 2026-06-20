@@ -15,33 +15,18 @@ const pendingSnapshots = [];
 const pendingSpeeches = [];
 
 /**
- * Discover wasm-bindgen exports from Trunk's hashed game module script.
- * @returns {Promise<Record<string, unknown>|null>}
+ * Resolve wasm-bindgen exports set by Trunk's bootstrap script.
+ * Avoid dynamic `import()` of the game module — it can deadlock with Trunk's
+ * in-flight WASM init and leave app.js bootstrap hanging forever.
+ * @returns {Record<string, unknown>|null}
  */
-async function discoverWasmExports() {
+function discoverWasmExports() {
   if (window.__AGENT_SPACE_WASM__?.on_room_state_sync) {
     return window.__AGENT_SPACE_WASM__;
   }
 
   if (window.wasmBindings?.on_room_state_sync) {
     return window.wasmBindings;
-  }
-
-  const scripts = [...document.querySelectorAll('script[type="module"][src]')];
-  for (const script of scripts) {
-    const src = script.getAttribute("src");
-    if (!src || !src.includes("game-") || !src.endsWith(".js")) {
-      continue;
-    }
-
-    try {
-      const mod = await import(/* @vite-ignore */ src);
-      if (mod.on_room_state_sync) {
-        return mod;
-      }
-    } catch (error) {
-      console.debug("[game-bridge] import failed for", src, error);
-    }
   }
 
   return null;
@@ -123,23 +108,25 @@ export async function waitForGameBridge() {
     return true;
   }
 
-  const tryBind = async () => {
-    const exports = await discoverWasmExports();
+  const tryBind = () => {
+    const exports = discoverWasmExports();
     return exports ? initGameBridge(exports) : false;
   };
 
-  if (await tryBind()) {
+  if (tryBind()) {
     return true;
   }
 
-  return new Promise((resolve) => {
-    const onReady = async () => {
-      resolve(await tryBind());
-    };
+  const deadline = Date.now() + 15_000;
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => window.setTimeout(resolve, 100));
+    if (tryBind()) {
+      return true;
+    }
+  }
 
-    window.addEventListener("TrunkApplicationStarted", onReady, { once: true });
-    window.setTimeout(async () => resolve(await tryBind()), 750);
-  });
+  console.warn("[game-bridge] WASM bridge not available after timeout");
+  return false;
 }
 
 /**

@@ -252,23 +252,23 @@ const MEET_PROPS: [PropPlacement; 5] = [
 const LOUNGE_PROPS: [PropPlacement; 3] = [
     PropPlacement {
         model_suffix: "loungeSofa.obj",
-        offset: Vec3::new(-0.35, 0.0, 0.0),
+        offset: Vec3::new(-0.55, 0.0, 0.15),
         rotation_y: 0.0,
-        target_size: 1.6,
+        target_size: 1.4,
         material: PropMaterial::Fabric,
     },
     PropPlacement {
         model_suffix: "loungeChair.obj",
-        offset: Vec3::new(0.85, 0.0, 0.35),
+        offset: Vec3::new(1.05, 0.0, 0.55),
         rotation_y: -0.55,
-        target_size: 0.95,
+        target_size: 0.85,
         material: PropMaterial::Fabric,
     },
     PropPlacement {
         model_suffix: "sideTable.obj",
-        offset: Vec3::new(0.75, 0.0, -0.45),
+        offset: Vec3::new(0.45, 0.0, -0.75),
         rotation_y: 0.0,
-        target_size: 0.55,
+        target_size: 0.5,
         material: PropMaterial::Wood,
     },
 ];

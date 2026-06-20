@@ -156,18 +156,26 @@ fn spawn_gltf_scene(
     entry: &AgentManifestEntry,
     capsule_entity: Entity,
 ) {
-    let gltf_path = game_asset(&entry.gltf);
-    commands.entity(parent).with_children(|parent_cmd| {
-        parent_cmd
-            .spawn((
-                GltfScenePending { capsule_entity },
-                SceneRoot(
-                    asset_server.load(GltfAssetLabel::Scene(0).from_asset(gltf_path)),
-                ),
-                Transform::from_scale(Vec3::splat(0.85)),
-            ))
-            .observe(on_gltf_scene_ready);
-    });
+    // Browser WASM builds keep colored capsules — GLB scenes often fail to render
+    // and the old path despawned the capsule as soon as SceneInstanceReady fired.
+    #[cfg(target_arch = "wasm32")]
+    return;
+
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let gltf_path = game_asset(&entry.gltf);
+        commands.entity(parent).with_children(|parent_cmd| {
+            parent_cmd
+                .spawn((
+                    GltfScenePending { capsule_entity },
+                    SceneRoot(
+                        asset_server.load(GltfAssetLabel::Scene(0).from_asset(gltf_path)),
+                    ),
+                    Transform::from_scale(Vec3::splat(0.85)),
+                ))
+                .observe(on_gltf_scene_ready);
+        });
+    }
 }
 
 fn on_gltf_scene_ready(
@@ -178,7 +186,9 @@ fn on_gltf_scene_ready(
     let Ok(pending) = pending.get(ready.entity) else {
         return;
     };
-    commands.entity(pending.capsule_entity).despawn();
+    commands
+        .entity(pending.capsule_entity)
+        .insert(Visibility::Hidden);
     commands.entity(ready.entity).remove::<GltfScenePending>();
 }
 

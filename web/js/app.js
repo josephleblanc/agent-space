@@ -28,6 +28,21 @@ const STATE_LABELS = {
   talking: "Talking",
 };
 
+/** Backends that respond with an honest stub until wired (Track E6). */
+const STUB_BACKENDS = new Set(["hermes", "openclaw", "codex"]);
+
+/**
+ * @param {string} backend
+ * @returns {string}
+ */
+function formatBackendLabel(backend) {
+  const id = String(backend || "nebius").trim().toLowerCase();
+  if (STUB_BACKENDS.has(id)) {
+    return `${id} (not configured)`;
+  }
+  return id;
+}
+
 /**
  * @param {import("./api-client.js").AgentSnapshot} agent
  * @returns {HTMLElement}
@@ -48,6 +63,10 @@ function renderAgentCard(agent) {
     <div class="agent-meta">
       <span class="agent-role">${escapeHtml(agent.role)}</span>
       <span class="agent-station">${agent.station_id ? escapeHtml(agent.station_id) : "—"}</span>
+    </div>
+    <div class="agent-backend-row">
+      <span class="agent-backend-label">Backend</span>
+      <span class="agent-backend${STUB_BACKENDS.has(String(agent.backend).toLowerCase()) ? " agent-backend-stub" : ""}">${escapeHtml(formatBackendLabel(agent.backend))}</span>
     </div>
   `;
 
@@ -123,13 +142,19 @@ function startLivePolling() {
   });
 }
 
-async function bootstrap() {
+// Wire UI immediately at module load — do not wait on WASM (bootstrap used to hang
+// on game-bridge deadlock and never registered these listeners).
+try {
   initVapiBridge();
-  bindMicButton();
-  bindRosterToggle();
-  initDevInject();
-  bindRoomStateBridge();
+} catch (error) {
+  console.warn("[app] Vapi init failed; voice disabled:", error);
+}
+bindMicButton();
+bindRosterToggle();
+initDevInject();
+bindRoomStateBridge();
 
+async function bootstrap() {
   await waitForGameBridge();
 
   if (CANNED_MODE) {

@@ -18,7 +18,7 @@ rm -rf "$BUNDLE"
 mkdir -p "$BUNDLE/scripts"
 
 cp -a "$DIST/." "$BUNDLE/"
-cp -a "$ROOT/web/js" "$BUNDLE/js"
+cp -a "$ROOT/web/js/." "$BUNDLE/js/"
 cp -a "$ROOT/assets" "$BUNDLE/assets"
 cp "$ROOT/scripts/deploy-vercel.json" "$BUNDLE/vercel.json"
 cp "$ROOT/scripts/inject-deploy-env.js" "$BUNDLE/scripts/inject-deploy-env.js"
