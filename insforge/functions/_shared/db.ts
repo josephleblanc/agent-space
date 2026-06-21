@@ -5,7 +5,8 @@
  * For privileged writes (tasks, agent state), prefer SERVICE_ROLE_KEY when set.
  */
 
-import { createClient, type InsForgeClient } from "npm:@insforge/sdk@latest";
+// Version is pinned in deno.json's import map (npm:@insforge/sdk@1.4.2).
+import { createClient, type InsForgeClient } from "@insforge/sdk";
 import type {
   AgentSnapshot,
   AgentState,
@@ -166,11 +167,11 @@ export async function insertMessage(
     return;
   }
 
-  const { error } = await client.database.from("messages").insert({
+  const { error } = await client.database.from("messages").insert([{
     agent_id: agentId,
     role,
     content,
-  });
+  }]);
 
   if (error) {
     console.error("insertMessage failed", error);
@@ -233,13 +234,13 @@ export async function insertTask(
 
   const { data, error } = await client.database
     .from("tasks")
-    .insert({
+    .insert([{
       id: taskId,
       agent_id: agentId,
       type,
       station,
       status,
-    })
+    }])
     .select("*")
     .maybeSingle();
 
@@ -414,7 +415,7 @@ export async function insertAssetRecord(
     throw new Error(`Invalid asset status: ${status}`);
   }
 
-  const { error } = await client.database.from("assets").insert({
+  const { error } = await client.database.from("assets").insert([{
     id: assetId,
     kind: input.kind,
     description: input.description,
@@ -422,7 +423,7 @@ export async function insertAssetRecord(
     gltf_path: encodeRenderSpec(input.render),
     requested_by: input.requested_by ?? null,
     status,
-  });
+  }]);
 
   if (error) {
     console.error("insertAssetRecord failed", error);
