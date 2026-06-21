@@ -59,7 +59,7 @@ impl Plugin for ManifestPlugin {
     }
 }
 
-fn parse_hex_color(hex: &str) -> Color {
+pub fn parse_hex_color(hex: &str) -> Color {
     let hex = hex.trim_start_matches('#');
     if hex.len() != 6 {
         return Color::srgb(0.5, 0.5, 0.5);

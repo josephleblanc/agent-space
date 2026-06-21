@@ -10,6 +10,7 @@ mod obj_loader;
 mod plugin;
 mod room;
 mod room_sync;
+mod spawn_queue;
 mod state;
 mod station;
 mod world;
