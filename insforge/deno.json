@@ -4,7 +4,7 @@
     "check": "deno check dev-server.ts functions/**/index.ts functions/_shared/*.ts"
   },
   "imports": {
-    "@insforge/sdk": "npm:@insforge/sdk@latest"
+    "@insforge/sdk": "npm:@insforge/sdk@1.4.2"
   },
   "compilerOptions": {
     "strict": true,
