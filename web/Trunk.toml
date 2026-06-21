@@ -16,13 +16,10 @@ stage = "pre_build"
 command = "sh"
 command_arguments = ["-c", "npm run build 2>/dev/null || node scripts/write-env.js"]
 
-[[copy]]
-source = "../assets"
-dest = "assets"
-
-[[copy]]
-source = "js"
-dest = "js"
+# NOTE: js/ and assets/ are copied into dist/ via `rel="copy-dir"` links in
+# index.html. Trunk 0.21.x silently ignores [[copy]] tables here, so they were
+# removed — the copy-dir links are the supported mechanism and make a bare
+# `trunk build` / `trunk serve` produce a complete, runnable bundle.
 
 [serve]
 addresses = ["127.0.0.1"]
