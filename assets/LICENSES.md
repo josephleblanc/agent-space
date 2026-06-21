@@ -12,7 +12,20 @@ They may be used freely for any purpose without attribution (credit is appreciat
 **Files used:** `characters/researcher.glb`, `coder.glb`, `planner.glb`, `social.glb`
 
 - Derived from Kenney `character-a` through `character-d` skins (18 skins, 27 animation clips per model).
-- Rigged low-poly humanoids with embedded textures; GLB format for Bevy WASM loading.
+- Rigged low-poly humanoids; GLB format for Bevy WASM loading.
+- Each avatar uses one of Kenney's CC0 skin textures, embedded directly into the GLB binary
+  (`image/png` buffer view, no external file dependency):
+
+| Agent | GLB | Kenney skin texture |
+|-------|-----|---------------------|
+| Researcher | `characters/researcher.glb` | `texture-a.png` |
+| Coder | `characters/coder.glb` | `texture-b.png` |
+| Planner | `characters/planner.glb` | `texture-c.png` |
+| Social | `characters/social.glb` | `texture-d.png` |
+
+Skin textures are from the Kenney Blocky Characters 2.0 pack (`Models/GLB format/Textures/`),
+[downloadable from Kenney.nl](https://kenney.nl/assets/blocky-characters). CC0 — attribution
+appreciated but not required.
 
 ## Environment / furniture props
 
