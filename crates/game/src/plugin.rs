@@ -12,6 +12,7 @@ use crate::{
     movement::{agent_movement, assign_paths_for_walking_agents},
     room::RoomPlugin,
     room_sync::RoomSyncPlugin,
+    spawn_queue::SpawnQueuePlugin,
     state::update_agent_states,
     station::StationPlugin,
 };
@@ -29,6 +30,7 @@ impl Plugin for GamePlugin {
             StationPlugin,
             AnimationPlugin,
             RoomSyncPlugin,
+            SpawnQueuePlugin,
         ))
         .add_systems(Startup, spawn_agents)
         .add_systems(
