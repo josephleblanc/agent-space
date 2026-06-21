@@ -56,10 +56,14 @@ const pendingToolCalls = new Map();
  * @returns {string}
  */
 export function getVapiPublicKey() {
+  const env =
+    typeof import.meta !== "undefined" ? import.meta.env : undefined;
+  const winEnv =
+    typeof window !== "undefined" ? window.__ENV__ : undefined;
   const fromMeta =
-    typeof import.meta !== "undefined" && import.meta.env?.VITE_VAPI_PUBLIC_KEY;
+    env?.VITE_PUBLIC_API_KEY || env?.VITE_VAPI_PUBLIC_KEY;
   const fromWindow =
-    typeof window !== "undefined" && window.__ENV__?.VITE_VAPI_PUBLIC_KEY;
+    winEnv?.VITE_PUBLIC_API_KEY || winEnv?.VITE_VAPI_PUBLIC_KEY;
   return String(fromMeta || fromWindow || "").trim();
 }
 
@@ -247,7 +251,7 @@ export function initVapiBridge() {
   const publicKey = getVapiPublicKey();
   if (!publicKey) {
     console.warn(
-      "[vapi-bridge] VITE_VAPI_PUBLIC_KEY not set; voice is disabled",
+      "[vapi-bridge] VITE_PUBLIC_API_KEY not set; voice is disabled",
     );
     return null;
   }
@@ -505,7 +509,7 @@ export function bindMicButton(buttonId = "mic-button") {
 
   if (!getVapiPublicKey()) {
     mic.classList.add("mic-disabled");
-    mic.title = "Set VITE_VAPI_PUBLIC_KEY in .env to enable voice";
+    mic.title = "Set VITE_PUBLIC_API_KEY in .env to enable voice";
     const label = mic.querySelector(".mic-label");
     if (label) {
       label.textContent = "Voice unavailable";
@@ -523,7 +527,7 @@ export function bindMicButton(buttonId = "mic-button") {
     const started = startVoiceCall();
     if (!started) {
       mic.classList.add("mic-disabled");
-      mic.title = "Set VITE_VAPI_PUBLIC_KEY in .env to enable voice";
+      mic.title = "Set VITE_PUBLIC_API_KEY in .env to enable voice";
     }
   });
 }
