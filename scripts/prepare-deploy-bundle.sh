@@ -15,11 +15,14 @@ if [[ ! -f "$DIST/index.html" ]]; then
 fi
 
 rm -rf "$BUNDLE"
-mkdir -p "$BUNDLE/scripts"
+mkdir -p "$BUNDLE/scripts" "$BUNDLE/js" "$BUNDLE/assets"
 
+# dist/ is already complete: Trunk's copy-dir links (web/index.html) place js/ and
+# assets/ into dist/, so `cp -a "$DIST/."` carries them over. The js/ + assets/ copies
+# below are now redundant freshness-syncs (contents-merge form, so they don't nest).
 cp -a "$DIST/." "$BUNDLE/"
 cp -a "$ROOT/web/js/." "$BUNDLE/js/"
-cp -a "$ROOT/assets" "$BUNDLE/assets"
+cp -a "$ROOT/assets/." "$BUNDLE/assets/"
 cp "$ROOT/scripts/deploy-vercel.json" "$BUNDLE/vercel.json"
 cp "$ROOT/scripts/inject-deploy-env.js" "$BUNDLE/scripts/inject-deploy-env.js"
 

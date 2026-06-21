@@ -24,6 +24,11 @@
       });
     </script>
     <link data-trunk rel="css" href="css/style.css" />
+    <!-- Copy JS bridges (web/js/) and glTF/props (repo-root assets/) into dist/.
+         copy-dir keeps the source dir name, yielding dist/js/ and dist/assets/.
+         Paths are resolved relative to this file's dir (web/). -->
+    <link data-trunk rel="copy-dir" href="js" />
+    <link data-trunk rel="copy-dir" href="../assets" />
     <link
       data-trunk
       rel="rust"

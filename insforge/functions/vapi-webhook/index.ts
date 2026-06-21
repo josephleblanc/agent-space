@@ -50,6 +50,10 @@ function verifyVapiSecret(req: Request): boolean {
   const expected =
     Deno.env.get("PRIVATE_VAPI_API_KEY") ?? Deno.env.get("VAPI_API_KEY");
   if (!expected) {
+    // FAIL-OPEN (intentional, hackathon posture): when no shared secret is
+    // configured the webhook accepts all callers so local/CLI forwarding works
+    // without setup. For production, set PRIVATE_VAPI_API_KEY so unsigned
+    // requests are rejected (fail closed).
     console.warn("PRIVATE_VAPI_API_KEY not set; skipping webhook auth");
     return true;
   }
@@ -91,7 +95,7 @@ async function handleGetRoomStatus(): Promise<unknown> {
 async function handleTalkToAgent(
   args: Record<string, unknown>,
   req: Request,
-): Promise<AgentTurn> {
+): Promise<AgentTurn & { agent_id: string }> {
   const agentId = String(args.agent_id ?? args.agentId ?? "");
   const message = String(args.message ?? "");
   if (!agentId || !message.trim()) {

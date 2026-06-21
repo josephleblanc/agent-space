@@ -2,6 +2,15 @@
 
 Digital hangout space for agents — a WASM Bevy 3D room with voice-driven AI agents.
 
+## Documentation
+
+| Doc | Purpose |
+|-----|---------|
+| **[`docs/OVERVIEW.md`](docs/OVERVIEW.md)** | **Start here** — architecture, repo map, remote services, what works today, gaps & next steps |
+| [`docs/INTEGRATION.md`](docs/INTEGRATION.md) | Manual end-to-end integration checklist (voice → webhook → DB → Bevy) |
+| [`docs/STRETCH.md`](docs/STRETCH.md) | Multimodal on-demand asset generation (Track H) |
+| [`insforge/README.md`](insforge/README.md) | Edge functions, local Deno dev server, backend deploy |
+
 ## Prerequisites
 
 - Rust **1.89+** (pinned via `rust-toolchain.toml`, includes `wasm32-unknown-unknown`)
@@ -55,19 +64,82 @@ unset NO_COLOR   # required if NO_COLOR=1 is set in your shell (Trunk 0.21.14)
 trunk build --release
 ```
 
-Output lands in `dist/`. See `docs/INTEGRATION.md` for the full release-build checklist.
+Output lands in `dist/`. `trunk build` / `trunk serve` alone now produce a complete,
+runnable bundle: `web/index.html` uses `<link data-trunk rel="copy-dir" …>` to copy
+`web/js/` → `dist/js/` and repo-root `assets/` → `dist/assets/`. (Trunk silently ignores
+`[[copy]]` tables in `Trunk.toml`, so those were removed in favour of the copy-dir links.)
 
-### Cloud hosting (InsForge)
+See `docs/INTEGRATION.md` for the full release-build checklist.
 
-Build locally, gzip the WASM into `.deploy-dist/`, then deploy the static bundle:
+## Deployment
+
+**Canonical path — InsForge static hosting (Vercel-backed):**
 
 ```bash
-cd web && npm run build && unset NO_COLOR && trunk build --release
-cd .. && bash scripts/prepare-deploy-bundle.sh
+# 1. Release build (self-contained dist/ with js/ + assets/ via Trunk copy-dir)
+cd web && npm run build && unset NO_COLOR && trunk build --release && cd ..
+
+# 2. Stage .deploy-dist/: gzip the WASM in place + add vercel.json
+bash scripts/prepare-deploy-bundle.sh
+
+# 3. Deploy the staged static bundle
 npx @insforge/cli deployments deploy .deploy-dist
 ```
 
-See `insforge/README.md` for backend setup and deploy troubleshooting.
+- **Command that deploys:** `npx @insforge/cli deployments deploy .deploy-dist`.
+- **Host:** InsForge static hosting, served via InsForge's Vercel-backed CDN at
+  `https://<APPKEY>.insforge.site` (this project: `https://6ns446hp.insforge.site`).
+  Edge functions live separately at the API base `https://6ns446hp.us-west.insforge.app`.
+- **Deploy `.deploy-dist/`, not `dist/` directly.** The raw release WASM (~29 MB) exceeds
+  InsForge's OSS upload limit (HTTP 413) and `dist/` has no `vercel.json`, so it would lack
+  the SPA rewrites and the gzip header below.
+
+### Env vars baked into the bundle
+
+Browser-safe `VITE_*` vars are embedded into `js/env.js` (read at runtime as `window.__ENV__`):
+
+| Var | Purpose |
+|-----|---------|
+| `VITE_INSFORGE_URL` | API base for room-state polling + edge-function calls |
+| `VITE_VAPI_PUBLIC_KEY` | Vapi public/client key for the voice button |
+
+Set them once as persistent deployment vars, then they are injected at deploy time:
+
+```bash
+npx @insforge/cli deployments env set VITE_INSFORGE_URL https://<APPKEY>.<region>.insforge.app
+npx @insforge/cli deployments env set VITE_VAPI_PUBLIC_KEY <your-vapi-public-key>
+```
+
+`scripts/deploy-vercel.json` (copied into `.deploy-dist/vercel.json`) declares
+`buildCommand: node scripts/inject-deploy-env.js`. On deploy, Vercel runs that script to
+rewrite `js/env.js` from the persistent `deployments env` vars — **no Rust/WASM recompile**
+(which would OOM on Vercel builders). Locally, `npm run build` / `scripts/write-env.js`
+already bakes the same vars from your `.env`.
+
+### How the gzip-WASM header is satisfied
+
+`scripts/prepare-deploy-bundle.sh` gzips `*_bg.wasm` **in place** (so the file on disk is
+gzip bytes, ~8 MB for release). `scripts/deploy-vercel.json` then serves it with:
+
+```json
+{ "key": "Content-Type", "value": "application/wasm" },
+{ "key": "Content-Encoding", "value": "gzip" }
+```
+
+so the browser transparently decompresses it. The same file also sets `no-cache` on
+`/js/*` (so `env.js` is always fresh) and an SPA rewrite of `/(.*) → /index.html`.
+
+### scripts/ reference
+
+| File | Role |
+|------|------|
+| `scripts/prepare-deploy-bundle.sh` | Stages `dist/` → `.deploy-dist/`, gzips WASM, adds `vercel.json` + `inject-deploy-env.js`. **Run before deploy.** |
+| `scripts/deploy-vercel.json` | The `vercel.json` shipped in the bundle: gzip-WASM header, `/js/*` no-cache, SPA rewrite, `buildCommand`. |
+| `scripts/inject-deploy-env.js` | Vercel `buildCommand`; rewrites `js/env.js` from deployment env vars (no compile). |
+| `scripts/vercel-build.sh` | **Source-deploy alternative**: full remote Rust+Trunk build on Vercel. OOMs on Bevy WASM release, so the staged `.deploy-dist` path above is preferred. |
+| `web/scripts/write-env.js` | Local: writes `web/js/env.js` from `.env` `VITE_*` (run by `npm run build` + Trunk `pre_build`). |
+
+See `insforge/README.md` for backend (edge function) setup and deploy troubleshooting.
 
 ## Judge demo script (Track G6)
 

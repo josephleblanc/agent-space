@@ -46,9 +46,9 @@ trunk build --release
 # Regenerate env.js with exported VITE_* before bundling (Trunk pre_build may have run earlier).
 node scripts/write-env.js
 
-# Trunk dist omits [[copy]] js/assets in release; bundle them for hosting.
-cp -a js "$ROOT/dist/js"
-cp -a "$ROOT/assets" "$ROOT/dist/assets"
+# Trunk's copy-dir links (web/index.html) already populate dist/js and dist/assets.
+# Only re-sync the freshly regenerated env.js so dist/js/env.js has the exported VITE_*.
+cp js/env.js "$ROOT/dist/js/env.js"
 
 test -f ../dist/index.html
 echo "[vercel-build] dist/ ready ($(du -sh ../dist | cut -f1))"
